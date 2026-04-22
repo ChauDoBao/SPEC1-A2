@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <!-- Adobe Typekit Link -->
+  <link rel="stylesheet" href="https://use.typekit.net/iwq3dmy.css">
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #04040c;
+      overflow: hidden;
+    }
+
+    .font-title {
+      font-family: "new-spirit", serif;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 1);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .font-body {
+      font-family: "mulish", sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    /* --- LANDING INFO BOX --- */
+    #info-box {
+      position: absolute;
+      right: 100px;
+      top: 52%;
+      transform: translateY(-50%);
+      width: 550px;
+      height: 320px;
+      border: 1.5px solid rgba(255, 255, 255, 0.3);
+      padding: 40px;
+      box-sizing: border-box;
+      z-index: 10;
+      pointer-events: none;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      background: rgba(4, 4, 12, 0.4);
+      backdrop-filter: blur(10px);
+    }
+
+    #info-title {
+      font-family: "new-spirit", serif; 
+      font-weight: 700;            
+      color: #ffffff;                  
+      font-size: 26px;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    #info-body {
+      font-family: "mulish", sans-serif; 
+      color: rgba(255, 255, 255, 0.85);  
+      font-size: 16px;
+      line-height: 1.6;
+      white-space: normal;
+    }
+
+    .divider {
+      width: 100%;
+      height: 1px; 
+      background: rgba(255, 255, 255, 0.3);
+      margin: 8px 0; 
+      display: block; 
+    }
+
+    /* --- SIDE PANEL --- */
+    #side-panel {
+      height: 100%;
+      width: 500px;
+      position: fixed;
+      z-index: 101;
+      top: 0;
+      right: -500px;
+      background-color: rgba(4, 4, 12, 0.98);
+      backdrop-filter: blur(15px);
+      overflow-y: auto;
+      transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+      pointer-events: auto;
+    }
+
+    #side-panel.open { right: 0; }
+
+    .panel-content {
+      padding: 60px 45px;
+    }
+
+    .panel-header {
+      font-size: 26px;
+      margin-bottom: 30px;
+      letter-spacing: 3px;
+    }
+
+    #close-btn {
+      position: absolute;
+      top: 20px;
+      right: 30px;
+      font-size: 36px;
+      color: white;
+      cursor: pointer;
+      opacity: 0.6;
+    }
+
+    /* Section Spacing */
+    .section { margin-bottom: 40px; }
+    .section h3 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: rgba(255, 255, 255, 1);
+    }
+
+    /* Paragraphs and Narrative */
+    .main-narrative, .section p, .section li {
+      font-family: "mulish", sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.85);
+      margin: 0 0 10px 0;
+    }
+
+    strong {
+      color: rgba(255, 255, 255, 1);
+      font-weight: 700;
+    }
+
+    .narrative-italic {
+      font-style: italic;
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    /* Quote styling in panel */
+    .italic-block {
+      font-style: italic;
+      opacity: 0.8;
+      padding-left: 14px;
+      border-left: 2px solid rgba(255, 255, 255, 0.2);
+      display: block;
+      margin-top: 10px;
+    }
+
+    /* List styling */
+    ul { padding-left: 20px; margin: 10px 0 0 0; }
+    li { margin-bottom: 6px; }
+
+    /* Metadata Footer */
+    .metadata {
+      margin-top: 50px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      opacity: 0.5;
+    }
+
+    /* Menu Icon */
+    #menu-icon {
+      position: fixed;
+      top: 30px;
+      right: 30px;
+      z-index: 100;
+      cursor: pointer;
+      padding: 10px;
+    }
+    .bar {
+      width: 25px;
+      height: 2px;
+      background-color: white;
+      margin: 5px 0;
+    }
+
+    a { color: #5175B9; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <div id="info-box">
+    <h1 id="info-title" class="font-title">Triangular Partnership</h1>
+    <div class="divider"></div>
+    <p id="info-body" class="font-body">
+      In front of you is a dynamic triangle with each corner representing a different voice in global collaboration: <strong>Developed Countries, Developing Countries, and Least Developed Countries. </strong>
+      <br><br>
+      Let’s interact with the triangles to explore the generative artworks and see how they connect and interact.
+    </p>
+  </div>
+  <!-- Menu Button -->
+<div id="menu-icon" onclick="toggleSidebar()">
+  <div class="bar"></div>
+  <div class="bar"></div>
+  <div class="bar"></div>
+</div>
+
+<!-- Side Panel -->
+<div id="side-panel">
+    <div id="close-btn" onclick="toggleSidebar()">&times;</div>
+    <div class="panel-content">
+      <h2 class="panel-header font-title">INFORMATION</h2>
+      
+      <div class="section">
+        <p class="font-body"><strong>Group:</strong> Đại Đại</p>
+      </div>
+
+      <div class="section">
+        <h3 class="font-title">Group members:</h3>
+        <ul class="font-body">
+          <li>Do Bao Chau – s4023727</li>
+          <li>Truong Nguyen Kieu My – s4037623</li>
+          <li>Nguyen Hoai Nam – s3977831</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <h3 class="font-title">Chosen Topic</h3>
+        <p class="font-body"><strong>SDG 17:</strong> Partnerships for the Goals</p>
+        <p class="italic-block font-body">"Strengthen the means of implementation and revitalize the Global Partnership for Sustainable Development."</p>
+      </div>
+
+      <div class="section">
+        <h3 class="font-title">Chosen Quote</h3>
+        <p class="italic-block font-body">Mother Teresa (2013) Mother Teresa: 10 inspiring quotes – Where peace comes from, The Christian Science Monitor website, accessed 24 March 2026, <a href="https://www.csmonitor.com/Books/2013/0825/Mother-Teresa-10-inspiring-quotes/Where-peace-comes-from.">Link</a>.</p>
+      </div>
+      
+      <div class="section">
+        <h3 class="font-title">Paragraph</h3>
+        <div class="main-narrative">
+          Mother Teresa once said, <span class="narrative-italic">"If we have no peace, it is because we have forgotten that we belong to each other."</span> This idea reflects the core of <strong>SDG 17: Partnerships for the Goals</strong> and its <strong>Target 17.16: Global Partnership for Sustainable Development</strong>, which emphasizes that global challenges can only be solved through cooperation. Today’s data shows how ignoring global interdependence can lead to economic and social consequences. Recent reports from the United Nations Department of Economic and Social Affairs highlight slowing global economic growth and a $4 trillion annual gap in SDG financing, while around 800 million people remain in extreme poverty, all demonstrate that no country can succeed alone. 
+          <br><br>
+          One practical solution is <strong>triangular partnerships</strong>: 
+          <ul>
+            <li><strong>Developing countries</strong> <strong>share </strong> proven technology-based solutions such as digital platforms and low-cost innovations and experience; </li>
+            <li><strong>Least developed countries</strong><strong> adapt </strong> these tools to their local infrastructure, workforce capacity, and environmental conditions; </li>
+            <li><strong>Developed countries</strong> <strong>provide</strong> funding, advanced technologies like AI and satellite systems, as well as technical expertise to ensure effective implementation. </li>
+          </ul><br>
+          To take part in this idea, we suggest connecting with two international peers, hosting a short online discussion, and co-creating one simple, low-cost solution that can be implemented within a week to address a shared local challenge in the community.
+        </div>
+      </div>
+
+      <div class="section metadata font-body">
+        <p><strong>Course:</strong> COMM2754: Digital Media Specialisation</p>
+        <p><strong>Affiliation:</strong> RMIT University Vietnam</p>
+        <p><strong>Date:</strong> 24/04/2026</p>
+      </div>
+    </div>
+  </div>
+
+<script>
+let triangles = [];
+let connectionDots = [];
+let networkNodes = [];
+let headerImg;
+
+// Layout Variables
+let sideMargin = 100; 
+let verticalOffset = 40; 
+let boxW = 550;
+let boxH = 450;
+
+// Camera/Zoom State
+let zoomTarget = { x: 0, y: 0, s: 1 };
+let zoomCurrent = { x: 0, y: 0, s: 1 };
+let isZoomed = false;
+let focusedTriangle = null;
+
+const SQRT3_2 = 0.866025; 
+const defaultTitle = document.getElementById('info-title').innerText;
+const defaultBody = document.getElementById('info-body').innerHTML;
+
+function preload() {
+  headerImg = loadImage("header.png");
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  
+  let systemWidthHalf = 250; 
+  let leftSystemCenterX = -width/2 + sideMargin + systemWidthHalf; 
+  triangles.push({ id: 'Least Developed Countries', side: 60, x: leftSystemCenterX, y: -220, color: '#FF3C3C', type: 'open', hoverF: 0, link: 'chau.html' });
+  triangles.push({ id: 'Developing Countries', side: 100, x: leftSystemCenterX - 200, y: 180, color: '#2FE197', type: 'closed', hoverF: 0, link: 'my.html' });
+  triangles.push({ id: 'Developed Countries', side: 150, x: leftSystemCenterX + 200, y: 180, color: '#5175B9', type: 'closed', hoverF: 0, link: 'taiyo.html' });
+
+  calculatePreciseStructure();
+  
+  zoomCurrent.x = width/2; zoomCurrent.y = height/2 + verticalOffset;
+  zoomTarget.x = width/2; zoomTarget.y = height/2 + verticalOffset;
+}
+
+function draw() {
+  background(4, 4, 12); 
+
+  if (!isZoomed) {
+    drawHeader();
+  }
+  
+  // Interactive System
+  zoomCurrent.x = lerp(zoomCurrent.x, zoomTarget.x, 0.1);
+  zoomCurrent.y = lerp(zoomCurrent.y, zoomTarget.y, 0.1);
+  zoomCurrent.s = lerp(zoomCurrent.s, zoomTarget.s, 0.1);
+
+  let mx = (mouseX - zoomCurrent.x) / zoomCurrent.s;
+  let my = (mouseY - zoomCurrent.y) / zoomCurrent.s;
+  let anyoneHovered = false;
+
+  push();
+  translate(zoomCurrent.x, zoomCurrent.y);
+  scale(zoomCurrent.s);
+
+  if (!isZoomed) {
+    drawDataFlow();
+  }
+
+  triangles.forEach(t => {
+    if (isZoomed && t !== focusedTriangle) return;
+
+    let d = dist(mx, my, t.x, t.y);
+    if (d < t.side * 0.85) {
+      t.hoverF = lerp(t.hoverF, 1, 0.35);
+      anyoneHovered = true;
+    } else {
+      t.hoverF = lerp(t.hoverF, 0, 0.25);
+    }
+    drawVectorBlurShape(t);
+
+    // Show visual hint if zoomed and hovered
+    if (isZoomed && focusedTriangle === t && t.hoverF > 0.5) {
+      drawLinkHint(t);
+    }
+  });
+
+  if (anyoneHovered) cursor(HAND);
+  else cursor(ARROW);
+
+  if (isZoomed && focusedTriangle) {
+    drawNeuralNetwork(focusedTriangle);
+  }
+  pop();
+}
+
+function updateUI() {
+  let titleEl = document.getElementById('info-title');
+  let bodyEl = document.getElementById('info-body');
+
+  if (isZoomed && focusedTriangle) {
+    titleEl.innerText = focusedTriangle.id;
+
+    if (focusedTriangle.id === 'Developed Countries') {
+      bodyEl.innerHTML = "<b>Provide</b> funding, advanced technologies like AI and satellite systems, as well as technical expertise to ensure effective implementation.";
+    } 
+    else if (focusedTriangle.id === 'Developing Countries') {
+      bodyEl.innerHTML = "<b>Share</b> proven technology-based solutions such as digital platforms and low-cost innovations and experience.";
+    } 
+    else if (focusedTriangle.id === 'Least Developed Countries') {
+      bodyEl.innerHTML = "<b>Adapt</b> these tools to their local infrastructure, workforce capacity, and environmental conditions.";
+    }
+  } 
+  else {
+    titleEl.innerText = defaultTitle;
+    bodyEl.innerHTML = defaultBody;
+  }
+}
+
+function mousePressed() {
+  let boxLeftEdge = width - boxW - sideMargin;
+  if (mouseX > boxLeftEdge) return; 
+
+  let mx = (mouseX - zoomCurrent.x) / zoomCurrent.s;
+  let my = (mouseY - zoomCurrent.y) / zoomCurrent.s;
+  let clicked = null;
+  
+  triangles.forEach(t => { 
+    if (dist(mx, my, t.x, t.y) < t.side * 0.9) clicked = t; 
+  });
+  
+  if (clicked) {
+    // If we are ALREADY zoomed into this triangle, click to go to the page
+    if (isZoomed && clicked === focusedTriangle) {
+        window.location.href = clicked.link;
+        return;
+    }
+
+    focusedTriangle = clicked; 
+    isZoomed = true;
+    generateSpreadNetwork(clicked); 
+    zoomTarget.s = 2; 
+    zoomTarget.x = width/3.5 - (clicked.x * zoomTarget.s); 
+    zoomTarget.y = (height/2) - (clicked.y * zoomTarget.s);
+  } else {
+    isZoomed = false; 
+    focusedTriangle = null;
+    zoomTarget.s = 1; 
+    zoomTarget.x = width/2; 
+    zoomTarget.y = height/2 + verticalOffset;
+  }
+  updateUI();
+}
+
+function drawLinkHint(t) {
+  push();
+  textAlign(CENTER);
+  textFont("mulish");
+  textSize(8);
+  fill(255, t.hoverF * 255);
+  noStroke();
+  text("CLICK TO EXPLORE", t.x, t.y + t.side * 0.7);
+  pop();
+}
+
+// --- Helper Functions (Visuals) ---
+
+function drawHeader() {
+  if (headerImg) {
+    let imgHeight = 70;
+    let ratio = headerImg.width / headerImg.height;
+    let imgWidth = imgHeight * ratio;
+    imageMode(CENTER);
+    image(headerImg, width / 2, 60, imgWidth, imgHeight);
+  }
+}
+
+function drawVectorBlurShape(t) {
+  let v = getTrianglePoints(t);
+  let col = color(t.color);
+  push();
+  noFill();
+  blendMode(ADD); 
+  let res = t.hoverF * 6; 
+
+  stroke(red(col), green(col), blue(col), 15 + t.hoverF * 15);
+  strokeWeight(15 + t.hoverF * 8);
+  drawingContext.filter = `blur(${12 + res}px)`;
+  renderShape(v, t.type);
+
+  stroke(red(col), green(col), blue(col), 35 + t.hoverF * 30);
+  strokeWeight(5 + t.hoverF * 3);
+  drawingContext.filter = `blur(${4 + t.hoverF * 2}px)`;
+  renderShape(v, t.type);
+
+  stroke(red(col), green(col), blue(col), 200 + t.hoverF * 55);
+  strokeWeight(2);
+  drawingContext.filter = 'none'; 
+  drawingContext.shadowBlur = 6 + res;
+  drawingContext.shadowColor = t.color;
+  renderShape(v, t.type);
+  
+  stroke(255, 100 + t.hoverF * 100);
+  strokeWeight(1);
+  renderShape(v, t.type);
+  pop();
+}
+
+function renderShape(v, type) {
+  if (type === 'open') {
+    beginShape(); vertex(v.bottomL.x, v.bottomL.y); vertex(v.top.x, v.top.y); vertex(v.bottomR.x, v.bottomR.y); endShape();
+  } else {
+    beginShape(); vertex(v.top.x, v.top.y); vertex(v.bottomL.x, v.bottomL.y); vertex(v.bottomR.x, v.bottomR.y); endShape(CLOSE);
+  }
+}
+
+function generateSpreadNetwork(focusedT) {
+  networkNodes = [];
+  let count = 12;
+  let maxR = min(width, height) * 0.22; 
+  let minR = focusedT.side * 1.1; 
+  for(let i = 0; i < count; i++) {
+    let angleBase = (TWO_PI / count) * i;
+    networkNodes.push({
+      angle: angleBase + random(-0.1, 0.1),
+      dist: random(minR, maxR),
+      size: random(10, 16),
+      pulseOffset: random(1000),
+      speed: random(0.02, 0.04),
+      seed: random(10000)
+    });
+  }
+}
+
+function drawNeuralNetwork(t) {
+  push();
+  translate(t.x, t.y);
+  blendMode(ADD);
+  let col = color(t.color);
+ 
+  let jitterMag, noiseSpeed;
+
+  if (t.id.includes('Developed Countries') && !t.id.includes('Least')) {
+    jitterMag = 1.5; 
+    noiseSpeed = 0.002;
+  } else if (t.id.includes('Developing Countries')) {
+    jitterMag = 35; 
+    noiseSpeed = 0.01;
+  } else {
+    jitterMag = 75; 
+    noiseSpeed = 0.05; 
+  }
+
+  networkNodes.forEach(n => {
+    let dx = map(noise(n.seed, frameCount * noiseSpeed), 0, 1, -jitterMag, jitterMag);
+    let dy = map(noise(n.seed + 100, frameCount * noiseSpeed), 0, 1, -jitterMag, jitterMag);
+    let centerX = cos(n.angle) * n.dist + dx;
+    let centerY = sin(n.angle) * n.dist + dy;
+    let pSize = n.size + sin(frameCount * n.speed + n.pulseOffset) * 3;
+    let h = pSize * SQRT3_2;
+    let rotation = atan2(centerY, centerX) - HALF_PI;
+    let tipX = centerX + cos(rotation - HALF_PI) * (h/2);
+    let tipY = centerY + sin(rotation - HALF_PI) * (h/2);
+    stroke(red(col), green(col), blue(col), 120);
+    line(0, 0, tipX, tipY);
+    noFill();
+    stroke(red(col), green(col), blue(col), 220);
+    push();
+    translate(centerX, centerY);
+    rotate(rotation);
+    if (t.type === 'open') {
+        beginShape(); vertex(-pSize/2, h/2); vertex(0, -h/2); vertex(pSize/2, h/2); endShape();
+    } else {
+        beginShape(); vertex(0, -h/2); vertex(-pSize/2, h/2); vertex(pSize/2, h/2); endShape(CLOSE);
+    }
+    pop();
+  });
+  pop();
+}
+
+function calculatePreciseStructure() {
+  connectionDots = [];
+  let baselineY = 220; 
+  let hGreen = triangles[1].side * SQRT3_2;
+  triangles[1].y = baselineY - hGreen/2;
+  let hBlue = triangles[2].side * SQRT3_2;
+  triangles[2].y = baselineY - hBlue/2;
+
+  let vRed = getTrianglePoints(triangles[0]);
+  let vGreen = getTrianglePoints(triangles[1]);
+  let vBlue = getTrianglePoints(triangles[2]);
+
+  createDottedPath(vGreen.top, vRed.bottomL, 'UP');   
+  createDottedPath(vBlue.top, vRed.bottomR, 'UP');   
+  
+  createDottedPath(vGreen.bottomR, vBlue.bottomL, 'SHARE'); 
+  createDottedPath(vBlue.bottomL, vGreen.bottomR, 'SHARE'); 
+}
+
+function getTrianglePoints(t) {
+  let s = 1 + (t.hoverF * 0.12); 
+  let side = t.side * s;
+  let hh = side * SQRT3_2;
+  return {
+    top: { x: t.x, y: t.y - hh/2 },
+    bottomL: { x: t.x - side/2, y: t.y + hh/2 },
+    bottomR: { x: t.x + side/2, y: t.y + hh/2 }
+  };
+}
+
+function createDottedPath(pStart, pEnd, flowType) {
+  let steps = 40; 
+  for (let i = 0; i <= steps; i++) {
+    let pct = i / steps;
+    connectionDots.push({
+      x: lerp(pStart.x, pEnd.x, pct),
+      y: lerp(pStart.y, pEnd.y, pct),
+      progress: pct, flowType: flowType
+    });
+  }
+}
+
+function drawDataFlow() {
+  push();
+  noStroke();
+  blendMode(ADD);
+  connectionDots.forEach(p => {
+    let wave = sin(p.progress * 10 - frameCount * 0.2);
+    let strength = pow(map(wave, -1, 1, 0, 1), 8);
+    let sz = map(constrain(strength, 0, 1), 0, 1, 2, 5.5);
+    fill(255, constrain(map(strength, 0, 1, 40, 255), 40, 255));
+    circle(p.x, p.y, sz); 
+  });
+  pop();
+}
+
+function toggleSidebar() {
+  const panel = document.getElementById("side-panel");
+  panel.classList.toggle("open");
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  let systemWidthHalf = 250; 
+  let leftSystemCenterX = -width/2 + sideMargin + systemWidthHalf;
+  triangles[0].x = leftSystemCenterX;
+  triangles[1].x = leftSystemCenterX - 200;
+  triangles[2].x = leftSystemCenterX + 200;
+  calculatePreciseStructure();
+  if (!isZoomed) { 
+    zoomTarget.x = width/2; zoomTarget.y = height/2 + verticalOffset; 
+  }
+}
+</script>
+</body>
+</html>
