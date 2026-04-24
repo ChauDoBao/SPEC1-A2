@@ -1,43 +1,48 @@
+/*
+Copyright (C) 2026 Truong Nguyen Kieu My
+*/
 
+// --- 1. GLOBAL ARRAYS (Storing all the "parts" of the visual) ---
+let nodes = [];            // The individual points in the net
+let edges = [];            // The connection lines
+let faces = [];            // The filled triangles
+let pulses = [];           // The energy ripples moving across the screen
+let bokehParticles = [];   // The blurry background glow circles
 
-// --- 1. GLOBAL ARRAYS ---
-let nodes = []; 
-let edges = []; 
-let faces = []; 
-let pulses = []; 
-let bokehParticles = []; 
-
-// --- 2. STATE & UI VARIABLES ---
-let appState = "INTRO"; 
-let menuState = "CLOSED"; 
+// --- 2. STATE & UI VARIABLES (The "brain" that controls the flow) ---
+let appState = "INTRO";    // Current screen: INTRO, ART, or OUTRO
+let menuState = "CLOSED";  // Is the 'Adapt' menu open or closed?
 let currentShape = "ORIGINAL"; 
-let introAlpha = 255;
+let introAlpha = 255;      // Text transparency for fading
 let outroAlpha = 0; 
-let artAlpha = 0;
-let homeHover = false;
-let nextHover = false; 
-let introStage = 1; 
-let targetY, slideY; 
+let artAlpha = 0;          // Fade-in effect for the generative art
+let homeHover = false;     // Tracks if mouse is over the home button
+let nextHover = false;     // Tracks if mouse is over the 'Next' link
+let introStage = 1;        // Which part of the intro text is playing
+let targetY, slideY;       // Vertical positions for sliding text
 let morphAlpha = 255;
-let activeSlider = null;
+let activeSlider = null;   // Which slider is currently being dragged
 
+// User-defined variables controlled by the UI Sliders
 let sliderSpeed = 0.5;    
 let sliderStrength = 0.4; 
 
-const sides = 10; 
-const rings = 4;  
-let centerX, centerY;
-let connectionDistance = 140; 
+// Network Geometry Settings
+const sides = 10;          // Points per ring
+const rings = 4;           // Concentric circle layers
+let centerX, centerY;      // Screen center
+let connectionDistance = 140; // Maximum distance to allow a "link"
 
 let headerImg;
 let homeImg; 
 
-
+// Preload: Ensuring images are ready before the sketch starts
 function preload() {
   headerImg = loadImage('header.png');
-  homeImg = loadImage('house.png'); // Correctly loads the home button image
+  homeImg = loadImage('house.png'); 
 }
 
+// Setup: Runs once to prepare the canvas and initialize the net
 function setup() {
   let cnv = createCanvas(windowWidth, windowHeight);
   cnv.parent('canvas-container'); 
@@ -47,8 +52,10 @@ function setup() {
   targetY = height / 2;
   slideY = targetY; 
   
+  // Creates the initial grid of nodes using Trigonometry
   initNetwork();
   
+  // Create 12 background bokeh particles with random properties
   bokehParticles = [];
   for (let i = 0; i < 12; i++) {
     bokehParticles.push({
@@ -67,19 +74,21 @@ function setup() {
   }
 }
 
+// Draw: The main loop running at 60 frames per second
 function draw() {
-  background(4, 6, 12); 
+  background(4, 6, 12); // Deep navy background
 
+  // State Machine: Switching logic for different project phases
   if (appState === "INTRO") { 
     drawIntro(); 
   } 
   else if (appState === "ART") {
-    drawArt(); 
-    autoTriggerPulses(); 
-    drawCinematicBars(); 
-    drawHeaderImage(); 
+    drawArt();              // The main network visual
+    autoTriggerPulses();    // Automatically generate ripples
+    drawCinematicBars();    // The movie-style black bars
+    drawHeaderImage();      // The top logo
     
-    // Sliders now use the Red Theme
+    // HUD Sliders with Red Theme
     drawHUDSlider(70, height/2 - 150, sliderSpeed, "Speed", 1);
     drawHUDSlider(70, height/2 + 150, sliderStrength, "Solutions &\nExperience", 2);
     
@@ -90,6 +99,7 @@ function draw() {
     drawOutro(); 
   }
   
+  // Home button appears in Art and Outro states
   if (appState !== "INTRO") {
     drawHomeButton(); 
   }
@@ -99,7 +109,7 @@ function draw() {
 
 function mousePressed() {
   if (homeHover) {
-    window.location.href = "index.html"; 
+    window.location.href = "index.html"; // Go back to landing page
     return;
   }
   if (nextHover && appState === "ART") {
@@ -110,7 +120,7 @@ function mousePressed() {
 }
 
 function mouseReleased() {
-  activeSlider = null;
+  activeSlider = null; // Release the HUD sliders
 }
 
 // --- 4. SCREEN DRAWING FUNCTIONS ---
@@ -132,12 +142,13 @@ function drawIntro() {
   text(txtStage, startX, targetY);
   
   let numX = startX + textWidth(txtStage); 
-  slideY = lerp(slideY, targetY, 0.1); 
+  slideY = lerp(slideY, targetY, 0.1); // Smooth vertical interpolation
   
   let currentContent = (introStage === 1) ? content1 : content2;
   fill(255, morphAlpha); 
   text(currentContent, numX, slideY);
   
+  // Timer logic to switch between intro text stages
   if (frameCount > 120 && introStage === 1) { 
     morphAlpha -= 10; 
     if (morphAlpha <= 0) { 
@@ -146,6 +157,7 @@ function drawIntro() {
     } 
   }
   
+  // Fading logic to transition into the Art state
   if (introStage === 2) {
     morphAlpha = min(morphAlpha + 15, introAlpha); 
     if (frameCount > 260) { 
@@ -159,6 +171,7 @@ function drawIntro() {
 function drawOutro() {
   if (outroAlpha < 255) outroAlpha += 3; 
   
+  // Keep background bokeh moving in Outro
   blendMode(ADD);
   bokehParticles.forEach(b => {
     b.x = b.anchorX + sin(frameCount * b.speedX + b.phaseX) * b.driftRange;
@@ -187,10 +200,11 @@ function drawOutro() {
 }
 
 function drawArt() {
-  if (artAlpha < 255) artAlpha += 5;
+  if (artAlpha < 255) artAlpha += 5; // Subtle fade in when Art starts
   push();
   drawingContext.globalAlpha = artAlpha / 255;
 
+  // Background movement
   blendMode(ADD);
   noStroke();
   for (let b of bokehParticles) {
@@ -199,6 +213,7 @@ function drawArt() {
     drawSoftCircle(b.x, b.y, b.size, b.col);
   }
 
+  // Draw Faces: Filling in triangles when three nodes are powered
   blendMode(BLEND);
   for (let f of faces) {
     let facePower = min(f.a.powerLevel, min(f.b.powerLevel, f.c.powerLevel));
@@ -208,16 +223,18 @@ function drawArt() {
     }
   }
 
+  // Draw Edges: Dotted lines between close nodes
   for (let e of edges) {
     let edgePower = min(e.a.powerLevel, e.b.powerLevel);
     let alpha = lerp(40, 200, edgePower);
     strokeWeight(1);
     stroke(255, alpha); 
-    drawingContext.setLineDash([2, 5]); 
+    drawingContext.setLineDash([2, 5]); // Dotted style
     line(e.a.pos.x, e.a.pos.y, e.b.pos.x, e.b.pos.y);
     drawingContext.setLineDash([]); 
   }
 
+  // Draw Pulses: Active ripples flowing into the net
   blendMode(ADD);
   for (let i = pulses.length - 1; i >= 0; i--) {
     pulses[i].update();
@@ -225,6 +242,7 @@ function drawArt() {
     if (pulses[i].isFinished) pulses.splice(i, 1);
   }
   
+  // Update and draw the Nodes
   for (let node of nodes) {
     node.update();
     node.display();
@@ -243,12 +261,12 @@ function drawHeaderImage() {
   }
 }
 
-// --- 5. CORE CLASSES ---
+// --- 5. CORE CLASSES (Object-Oriented Architecture) ---
 
 class Node {
   constructor(x, y) {
-    this.anchor = createVector(x, y);
-    this.pos = createVector(x, y);
+    this.anchor = createVector(x, y); // The target coordinate
+    this.pos = createVector(x, y);    // The current pixel coordinate
     this.noiseOffsetX = random(2000); 
     this.noiseOffsetY = random(4000);
     this.isCharging = false; 
@@ -258,11 +276,13 @@ class Node {
     this.glowRadius = 10; 
   }
 
+  // Procedural Animation: Using Noise for organic jitter and Lerp for morphing
   update() {
     let jitter = this.isPowered ? 1.5 : (this.isCharging ? 3 : 8);
     let nx = map(noise(this.noiseOffsetX), 0, 1, -jitter, jitter);
     let ny = map(noise(this.noiseOffsetY), 0, 1, -jitter, jitter);
     
+    // Smoothly travel to new shape targets
     this.pos.x = lerp(this.pos.x, this.anchor.x + nx, 0.08);
     this.pos.y = lerp(this.pos.y, this.anchor.y + ny, 0.08);
     
@@ -271,6 +291,7 @@ class Node {
     if (this.isPowered) this.powerLevel = 1;
   }
 
+  // Draw the custom node icon (V or Triangle)
   drawV() {
     push();
     translate(this.pos.x, this.pos.y);
@@ -305,19 +326,20 @@ class Node {
   charge(amount) { 
     this.isCharging = true; 
     this.chargeLevel = amount; 
-    this.glowRadius = 10 + (amount * 25); // REDUCED GLOW FACTOR
+    this.glowRadius = 10 + (amount * 25); 
   }
 
   powerUp() { 
     this.isCharging = false; 
     this.isPowered = true; 
     this.powerLevel = 1; 
-    this.glowRadius = 35; // REDUCED MAX GLOW
+    this.glowRadius = 35; 
   }
 
+  // Shading: Native Canvas radial gradient for custom light falloff
   display() {
     if (this.isPowered || this.isCharging) {
-      let coreAlpha = this.isPowered ? 0.5 : this.chargeLevel * 0.2; // LOWERED OPACITY
+      let coreAlpha = this.isPowered ? 0.5 : this.chargeLevel * 0.2; 
       let grad = drawingContext.createRadialGradient(this.pos.x, this.pos.y, 0, this.pos.x, this.pos.y, this.glowRadius);
       grad.addColorStop(0, `rgba(255, 130, 130, ${coreAlpha})`);      
       grad.addColorStop(1, `rgba(255, 60, 60, 0)`);       
@@ -328,6 +350,7 @@ class Node {
   }
 }
 
+// RippleFlow: Calculating path of energy from edge to node
 class RippleFlow {
   constructor(target) {
     let angle = random(TWO_PI);
@@ -365,7 +388,7 @@ class RippleFlow {
   }
 }
 
-// --- 6. AUTOMATION & NAVIGATION ---
+// --- 6. AUTOMATION & NAVIGATION (Network Logic) ---
 
 function autoTriggerPulses() {
   let interval = map(pow(sliderSpeed, 2), 0, 1, 140, 15); 
@@ -377,6 +400,7 @@ function autoTriggerPulses() {
   }
 }
 
+// InitNetwork: Polar coordinate math for grid placement
 function initNetwork() {
   nodes = []; edges = []; faces = [];
   let spacing = min(width, height) * 0.11; 
@@ -384,11 +408,13 @@ function initNetwork() {
     for (let i = 0; i < sides; i++) {
       let angle = i * (TWO_PI / sides) - HALF_PI;
       let radius = r * spacing;
+      // Polar (Angle/Radius) to Cartesian (X/Y) conversion
       let x = centerX + radius * cos(angle);
       let y = centerY + radius * sin(angle);
       nodes.push(new Node(x, y));
     }
   }
+  // Proximity logic to automatically build the net structure
   for (let i = 0; i < nodes.length; i++) {
     for (let j = i + 1; j < nodes.length; j++) {
       let d = dist(nodes[i].anchor.x, nodes[i].anchor.y, nodes[j].anchor.x, nodes[j].anchor.y);
@@ -406,6 +432,7 @@ function initNetwork() {
   }
 }
 
+// Transform: Changing the anchor targets to morph shapes
 function transformShape(type) {
   nodes.forEach((n, i) => {
     let tx, ty;
@@ -455,6 +482,7 @@ function drawTextButton(x, y, w, h, label, callback) {
   pop();
 }
 
+// HUD: Interactive sliders mapping mouse positions to values (0-1)
 function drawHUDSlider(x, y, val, label, id) {
   let h = 210, w = 32; 
   if (mouseIsPressed && mouseX > x - w && mouseX < x + w && mouseY > y - h/2 && mouseY < y + h/2) activeSlider = id;
@@ -472,7 +500,6 @@ function drawHUDSlider(x, y, val, label, id) {
   fill(0, 160); noStroke(); rect(0, 0, w, h, 16); 
   let segments = 20; let segH = (h - 12) / segments;
   for(let i = 0; i < segments; i++) {
-    // UPDATED SLIDER COLOR TO RED THEME
     fill(255, 80, 80, (i / (segments - 1) <= val) ? 180 : 30); 
     rect(0, h/2 - 6 - (i * segH) - segH/2, w - 10, segH - 2, 3);
   }
@@ -481,23 +508,11 @@ function drawHUDSlider(x, y, val, label, id) {
 }
 
 function drawHomeButton() {
-  let x = 54; let y = 40; let size = 32; // Exact coordinates and size from reference
-  
-  // Hover logic based on exact image coordinates
+  let x = 54; let y = 40; let size = 32; 
   homeHover = (mouseX > x && mouseX < x + size && mouseY > y && mouseY < y + size);
-  
   push(); 
-  if (homeHover) { 
-    cursor(HAND); 
-    tint(255); // Full brightness on hover
-  } else { 
-    tint(180); // Subtle dim when not hovering
-  }
-  
-  // Draw the image exactly as defined in the reference
-  if (homeImg) {
-    image(homeImg, x, y, size, size); 
-  }
+  if (homeHover) { cursor(HAND); tint(255); } else { tint(180); }
+  if (homeImg) { image(homeImg, x, y, size, size); }
   pop();
 }
 
