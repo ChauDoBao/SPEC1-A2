@@ -22,10 +22,12 @@ let introAlpha = 255;
 let artAlpha = 0;
 let homeHover = false;
 let nextHover = false;
+let soundHover = false; // NEW: Hover state for the sound button
+let isMuted = false;    // NEW: Mute toggle state
 let headerImg; 
 
 let sliderSpeed = 0.5;
-let sliderStrength = 0.4;
+let sliderStrength = 0.5;
 let activeSlider = null;
 
 let introStage = 1;
@@ -36,9 +38,23 @@ const HUB_COUNT = 6;
 const SPOKES_PER_HUB = 6;
 let homeImg;
 
+//sound
+let clickSound;
+let pulseSound;
+let progressSound;
+let completeSound;
+let sliderUpSound;
+let sliderDownSound;
+
+
 function preload() {
-  headerImg = loadImage('header.png');
-  homeImg = loadImage('house.png'); // Correctly loads the home button image
+  homeImg = loadImage('house.png'); 
+  clickSound = loadSound("click(edited).wav"); 
+  pulseSound = loadSound("resource-flow.wav"); 
+  progressSound = loadSound("node-bloom.wav"); 
+  completeSound = loadSound("small-triangle-completed(edited).wav"); 
+  sliderUpSound = loadSound("slider-louder(edited).wav"); 
+  sliderDownSound = loadSound("slider-quiter(edited).wav"); 
 }
 
 function setup() {
@@ -158,7 +174,6 @@ function draw() {
     drawArt();
     autoTriggerPulses();
     drawCinematicBars();
-    drawHeaderImage();
     drawHUDSlider(70, height / 2 - 150, sliderSpeed, "Speed", 1);
     drawHUDSlider(
       70,
@@ -170,6 +185,7 @@ function draw() {
     drawNextLink();
   }
   drawHomeButton();
+  drawSoundButton(); // NEW: Draw the mute button
 }
 
 function drawArt() {
@@ -228,15 +244,7 @@ function manageHubActivity() {
   }
 }
 
-function drawHeaderImage() {
-  if (headerImg && artAlpha > 0) {
-    push();
-    imageMode(CENTER);
-    drawingContext.globalAlpha = artAlpha / 255;
-    image(headerImg, width / 2, 75); 
-    pop();
-  }
-}
+
 
 class Node {
   constructor(x, y, size, type, isComplete) {
@@ -280,6 +288,12 @@ class Node {
   receiveEnergy(amount) {
     if (this.completionProgress < 1.0) {
       this.completionProgress += amount; // add a small "bit" of progress
+      
+      if (progressSound && progressSound.isLoaded()) {
+        progressSound.setVolume(0.3);
+        progressSound.play();
+      }
+      
       if (this.completionProgress >= 1.0) {
         this.completionProgress = 1.0;
         this.powerUp();
@@ -327,6 +341,13 @@ class Node {
 
   powerUp() {
     this.isPowered = true;
+    if (completeSound && completeSound.isLoaded()) {
+      // Randomize pitch slightly (between 0.9 and 1.1), so it doesn't sound repetitive
+      let r = random(0.9, 1.1);
+      completeSound.rate(r); 
+      completeSound.setVolume(0.6); 
+      completeSound.play();
+    }
   }
 
   display() {
@@ -380,46 +401,40 @@ class Node {
 }
 
 function drawIntro() {
-  textAlign(LEFT, CENTER); 
+  textAlign(LEFT, CENTER);
+  
   textFont("new-spirit");
   drawingContext.font = `700 80px new-spirit, serif`;
+  
   noStroke();
-  
-  let txtStage = "STAGE "; 
-  let content1 = "1: PROVIDE"; 
-  let content2 = "2: SHARE";
-  
-  let fullWidth = textWidth(txtStage) + textWidth(content2); 
-  let startX = (width / 2) - (fullWidth / 2);
-  
-  fill(255, introAlpha); 
+  let txtStage = "STAGE ";
+  let content1 = "1: PROVIDE",
+    content2 = "2: SHARE";
+  let fullWidth = textWidth(txtStage) + textWidth(content2);
+  let startX = width / 2 - fullWidth / 2;
+  fill(255, introAlpha);
   text(txtStage, startX, targetY);
-  
-  let numX = startX + textWidth(txtStage); 
-  slideY = lerp(slideY, targetY, 0.1); 
-  
-  let currentContent = (introStage === 1) ? content1 : content2;
-  fill(255, morphAlpha); 
+  let numX = startX + textWidth(txtStage);
+  slideY = lerp(slideY, targetY, 0.1);
+  let currentContent = introStage === 1 ? content1 : content2;
+  fill(255, morphAlpha);
   text(currentContent, numX, slideY);
-  
-  if (frameCount > 120 && introStage === 1) { 
-    morphAlpha -= 10; 
-    if (morphAlpha <= 0) { 
-      introStage = 2; 
-      slideY = targetY - 60; 
-    } 
+  if (frameCount > 80 && introStage === 1) {
+    morphAlpha -= 15;
+    if (morphAlpha <= 0) {
+      introStage = 2;
+      slideY = targetY - 60;
+    }
   }
-  
   if (introStage === 2) {
-    morphAlpha = min(morphAlpha + 15, introAlpha); 
-    if (frameCount > 260) { 
-      introAlpha -= 5; 
-      morphAlpha = introAlpha; 
-      if (introAlpha <= 0) appState = "ART"; 
+    morphAlpha = min(morphAlpha + 20, introAlpha);
+    if (frameCount > 180) {
+      introAlpha -= 7;
+      morphAlpha = introAlpha;
+      if (introAlpha <= 0) appState = "ART";
     }
   }
 }
-
 
 function drawHomeButton() {
   let x = 54,
@@ -436,28 +451,127 @@ function drawHomeButton() {
   pop();
 }
 
-function drawHUDSlider(x, y, val, label, id) {
-  let h = 210, w = 32; 
-  if (mouseIsPressed && mouseX > x - w && mouseX < x + w && mouseY > y - h/2 && mouseY < y + h/2) activeSlider = id;
-  if (activeSlider === id) {
-    let newVal = map(mouseY, y + h/2, y - h/2, 0, 1);
-    if (id === 1) sliderSpeed = constrain(newVal, 0, 1);
-    if (id === 2) sliderStrength = constrain(newVal, 0, 1);
-  }
-  push(); translate(x, y); rectMode(CENTER); textAlign(CENTER, CENTER);
+// --- NEW SOUND BUTTON ---
+function drawSoundButton() {
+  let size = 30; // Match the home button size
+  let x = width - 54 - size; // Mirrored padding from the right
+  let y = 40; // Perfectly aligned with the home button's Y coordinate
   
+  soundHover = mouseX > x && mouseX < x + size && mouseY > y && mouseY < y + size;
+
+  push();
+  // Translate to the center of the button area
+  translate(x + size / 2, y + size / 2); 
+  
+  if (soundHover) {
+    cursor(HAND);
+  }
+  
+  let iconColor = soundHover ? color(255) : color(180);
+  
+  // 1. Draw Speaker Body (Solid, no stroke for crisp edges)
+  noStroke();
+  fill(iconColor);
+  rect(-8, -4, 4, 8); // Base rectangle
+  quad(-4, -4, -4, 4, 4, 8, 4, -8); // Fixed: Flared speaker cone (was 'triangle' before)
+  
+  // 2. Draw Waves or 'X' based on mute state
+  noFill();
+  stroke(iconColor);
+  strokeWeight(2);
+  strokeCap(ROUND); // Makes the ends of the lines/arcs softly rounded
+  
+  if (!isMuted) {
+    // Sound Waves
+    arc(5, 0, 8, 12, -PI/3, PI/3);
+    arc(5, 0, 16, 20, -PI/3, PI/3);
+  } else {
+    // Muted 'X'
+    line(8, -4, 14, 4);
+    line(14, -4, 8, 4);
+  }
+  
+  pop();
+}
+
+function drawHUDSlider(x, y, val, label, id) {
+  let h = 200; 
+  let w = 40;  
+  let activeColor = color("#2FE197"); 
+
+  if (mouseIsPressed &&
+      mouseX > x - w/2 && mouseX < x + w/2 &&
+      mouseY > y - h/2 && mouseY < y + h/2) {
+    activeSlider = id;
+  }
+
+  if (activeSlider === id) {
+    let prevVal = val; 
+    let rawVal = map(mouseY, y + h/2, y - h/2, 0, 1);
+
+    let snappedVal = round(constrain(rawVal, 0, 1) * 10) / 10;
+    if (snappedVal > prevVal) {
+      if (sliderUpSound && sliderUpSound.isLoaded()) {
+        sliderUpSound.rate(map(snappedVal, 0, 1, 1, 1.5)); 
+        sliderUpSound.setVolume(map(snappedVal, 0, 1, 0.5, 0.9));
+        sliderUpSound.play();
+      }
+    } 
+    else if (snappedVal < prevVal) {
+      if (sliderDownSound && sliderDownSound.isLoaded()) {
+        sliderDownSound.rate(map(snappedVal, 0, 1, 0.5, 0.9)); 
+        sliderDownSound.setVolume(map(snappedVal, 0, 1, 0.5, 0.9));
+        sliderDownSound.play();
+      }
+    }
+    
+    if (id === 1) sliderSpeed = snappedVal;
+    if (id === 2) sliderStrength = snappedVal;
+  }
+
+  push();
+  translate(x, y);
+
   textFont("mulish-variable");
   drawingContext.font = `200 16px mulish-variable, sans-serif`;
-  fill(255); text(floor(val * 100) + "%", 0, -h/2 - 14);
+
+  // --- PERCENTAGE TEXT (Top) ---
+  textAlign(CENTER, CENTER);
+  fill(255);
+  text(floor(val * 100) + "%", 0, -h / 2 - 25);
+
+  // --- DRAW THE LINES ---
+  strokeWeight(2);
+  stroke(255, 40);
+  line(0, -h/2, 0, h/2);
+  let currentY = map(val, 0, 1, h/2, -h/2);
+  stroke(activeColor);
+  line(0, h/2, 0, currentY);
   
-  fill(0, 160); noStroke(); rect(0, 0, w, h, 16); 
-  let segments = 20; let segH = (h - 12) / segments;
-  for(let i = 0; i < segments; i++) {
-    // UPDATED SLIDER COLOR TO RED THEME
-    fill(47, 255, 151, (i / (segments - 1) <= val) ? 200 : 50); 
-    rect(0, h/2 - 6 - (i * segH) - segH/2, w - 10, segH - 2, 3);
+  noStroke();
+  for (let i = 0; i <= 10; i++) {
+    let nodeY = map(i, 0, 10, h/2, -h/2);
+    let nodePct = i / 10;
+
+    if (nodePct <= val + 0.01) {
+      fill(activeColor);
+    } else {
+      fill(255, 100); 
+    }
+    circle(0, nodeY, 6);
   }
-  fill(255, 210); text(label, 0, h/2 + 20); 
+
+  // --- DRAW THE MOVABLE BIG CIRCLE (Indicator) ---
+  fill(activeColor);
+  drawingContext.shadowBlur = 15;
+  drawingContext.shadowColor = activeColor;
+  circle(0, currentY, 13); 
+  drawingContext.shadowBlur = 0;
+
+  // --- LABEL (Bottom) ---
+  fill(255, 200);
+  text(label, 0, h / 2 + 26);
+  
   pop();
 }
 
@@ -467,6 +581,14 @@ function autoTriggerPulses() {
     let activeHubs = hubs.filter((h) => h.isActiveSharing);
     if (activeHubs.length > 0) {
       let randomHub = random(activeHubs);
+      
+      let panning = map(randomHub.pos.x, 0, width, -1.0, 1.0);
+      if (pulseSound && pulseSound.isLoaded()) {
+        pulseSound.pan(panning); 
+        pulseSound.setVolume(0.2); 
+        pulseSound.play();
+      }
+      
       let myPetals = nodes.filter((n) => n.parentHub === randomHub);
       if (myPetals.length > 0) {
         let qty = floor(map(sliderStrength, 0, 1, 1, myPetals.length));
@@ -481,14 +603,33 @@ function autoTriggerPulses() {
 }
 
 function mousePressed() {
+  if (getAudioContext().state !== 'running') {
+    userStartAudio();
+  }
+
+  // NEW: Sound toggle logic
+  if (soundHover) {
+    isMuted = !isMuted;
+    if (isMuted) {
+      outputVolume(0); // Instantly silences all p5.sound output
+    } else {
+      outputVolume(1); // Restores master volume
+    }
+    return; // Exit early so clicking this doesn't trigger the clickSound
+  }
+
+  if (clickSound && clickSound.isLoaded() && !isMuted) {
+    clickSound.play();
+  }
+  
   if (homeHover) window.location.href = "index.html";
   if (nextHover) window.location.href = "chau.html";
 }
+
 function mouseReleased() {
   activeSlider = null;
 }
 
-//I use Bokeh to create a blending
 class Bokeh {
   constructor() {
     this.anchorX = random(width);
@@ -496,25 +637,18 @@ class Bokeh {
     this.x = this.anchorX;
     this.y = this.anchorY;
     this.size = random(120, 320);
-    this.col = random(["#FF3C3C", "#5175B9", "#ffffff"]); //include colors in other generative artworks
+    this.col = random(["#FF3C3C", "#5175B9", "#ffffff"]); 
     this.offX = random(1000);
     this.offY = random(1000);
   }
-  //By using sin for X and cos for Y, I forced the particle to move in a subtle, slow-motion circle around its anchor point. I multiplied the time (frameCount) by a very small number (0.008) to make the movement almost imperceptible, and set the radius to 40 pixels so the drift stays gentle and doesn't distract the user from the main triangles.
   update() {
     this.x = this.anchorX + sin(frameCount * 0.008 + this.offX) * 40;
     this.y = this.anchorY + cos(frameCount * 0.008 + this.offY) * 40;
   }
-  // I use the drawingContext.createRadialGradient again with the center opacity at 0.08 and the edge is 0
   display() {
     let c = color(this.col);
     let grad = drawingContext.createRadialGradient(
-      this.x,
-      this.y,
-      0,
-      this.x,
-      this.y,
-      this.size
+      this.x, this.y, 0, this.x, this.y, this.size
     );
     grad.addColorStop(0, `rgba(${red(c)}, ${green(c)}, ${blue(c)}, 0.08)`);
     grad.addColorStop(1, `rgba(0,0,0,0)`);
@@ -535,13 +669,10 @@ class RippleFlow {
   update() {
     this.progress += this.speed;
     if (this.progress >= 1) {
-      this.target.receiveEnergy(map(this.strength, 0, 1, 0.005, 0.02)); //this is the input of the amount value in the receiveEnergy() which range from 0.005 when the slider is low to 0.02 when the slider is 100%
+      this.target.receiveEnergy(map(this.strength, 0, 1, 0.005, 0.02)); 
       this.isFinished = true;
     }
   }
-
-  //I use a progress variable (0 to 1) and p5.Vector.lerp to move the pulse along a straight line from the hub to the target.
-  //To create the fading comet tail, I used: exp(-pow((dotT - this.progress) * 12, 2)). This is an exponential math function that creates a "peak" of brightness at the current progress point and causes the brightness to drop off perfectly in a curve behind it.
 
   display() {
     noStroke();
@@ -568,7 +699,7 @@ function drawCinematicBars() {
 }
 
 function drawNextLink() {
-  let label = "Next Stage >>"; textSize(16); let txtW = textWidth(label);
+let label = "Next Stage >>"; textSize(16); let txtW = textWidth(label);
   let x = width - 60; let y = height - 85;
   textFont("mulish-variable");
   drawingContext.font = `200 16px mulish-variable, sans-serif`;
@@ -577,7 +708,7 @@ function drawNextLink() {
   push(); translate(x, y); textAlign(LEFT, BASELINE);
   if (nextHover) { cursor(HAND); drawingContext.shadowBlur = 18; drawingContext.shadowColor = 'rgba(255, 255, 255, 0.8)'; }
   fill(nextHover ? 255 : 150); text(label, 0, 0);
-  stroke(47, 225, 151, nextHover ? 200 : 50); strokeWeight(2.5); line(0, 10, txtW, 10); pop();
+  stroke(47, 255, 151, nextHover ? 255 : 140); strokeWeight(2.5); line(0, 10, txtW, 10); pop();
 }
 
 function windowResized() {
