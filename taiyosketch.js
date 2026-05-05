@@ -27,14 +27,24 @@ let currentMaxRow = 5;
 let centerX;              
 let connectionDistance = 160; 
 
-let headerImg;            
 let homeImg;              
 let energyOut = 0;        
 
+// Sound Variables
+let soundHover = false; 
+let isMuted = false;    
+let launchSound;
+let powerUpSound;
+let sliderSound; // NEW: Single variable for the slider sound
+
 // --- 3. PRELOAD & SETUP ---
 function preload() {
-  headerImg = loadImage('header.png');
   homeImg = loadImage('house.png');
+  
+  // Load the sounds
+  launchSound = loadSound("Resource-Launch(edited).wav"); 
+  powerUpSound = loadSound("Node-Powerd-Up(edited).wav"); 
+  sliderSound = loadSound("slide-2.wav"); // NEW: Load the slider sound
 }
 
 function setup() {
@@ -67,13 +77,11 @@ function draw() {
     drawIntro(); 
   } 
   else if (appState === "ART") {
-    // FIX: Removed refreshConnections() from here to stop the lag
-    
     drawArt();           
     autoTriggerPulses(); 
     drawCinematicBars(); 
-    drawHeaderImage();   
     
+    // Slider UI Integration 
     drawHUDSlider(70, height/2 - 150, sliderSpeed, "Speed", 1);
     drawHUDSlider(70, height/2 + 150, sliderStrength, "Quantity", 2);
     
@@ -82,6 +90,7 @@ function draw() {
   
   if (appState !== "INTRO") {
     drawHomeButton();    
+    drawSoundButton(); 
   }
 }
 
@@ -101,11 +110,10 @@ function initInitialNetwork() {
       nodes.push(new Node(x, y, size, nodeType, (r <= 1), r));
     }
   }
-  refreshConnections(); // Initial stitch
+  refreshConnections(); 
 }
 
 function spawnNewFloor() {
-  // Performance cap
   if (nodes.length > 200) return; 
   
   let currentDeepestY = 0;
@@ -113,14 +121,11 @@ function spawnNewFloor() {
 
   currentMaxRow++;
   let r = currentMaxRow;
-  
-  // FIX: Increased spacing to 90 to prevent overlapping with previous floor
   let newY = currentDeepestY + 90; 
   
-  // Safety check to keep floor above bottom UI
   if (newY > height - 140) return; 
 
-  let nodesInRow = min(r + 2, 10); // Cap nodes per row to reduce lag
+  let nodesInRow = min(r + 2, 10); 
   let rowWidth = map(r, 0, 10, width * 0.3, width * 1.5);
   
   for (let i = 0; i < nodesInRow; i++) {
@@ -128,14 +133,12 @@ function spawnNewFloor() {
     nodes.push(new Node(x, newY, 18, 'ldc', false, r));
   }
   
-  // FIX: Refresh only when spawning to save CPU power
   refreshConnections(); 
 }
 
 function refreshConnections() {
   edges = [];
   faces = [];
-  // Use a slightly shorter distance for generated floors to keep it clean
   let dLimit = connectionDistance; 
   
   for (let i = 0; i < nodes.length; i++) {
@@ -213,9 +216,18 @@ function autoTriggerPulses() {
     if (sources.length > 0) {
       let src = random(sources);
       let targets = nodes.filter(n => n.row === 1);
+      
       if (targets.length > 0) {
         pulses.push(new RippleFlow(src, random(targets), true));
         energyOut += 0.08; 
+        
+        // SOUND TRIGGER: First triangle (Source) launches resources
+        if (launchSound && launchSound.isLoaded() && !isMuted) {
+          let panning = map(src.pos.x, 0, width, -1.0, 1.0);
+          launchSound.pan(panning); 
+          launchSound.setVolume(0.3); 
+          launchSound.play();
+        }
       }
     }
   }
@@ -302,7 +314,17 @@ class RippleFlow {
   update() {
     this.progress += map(pow(sliderSpeed, 2), 0, 1, 0.003, 0.025);
     if (this.progress >= 1) {
-      this.target.isPowered = true;
+      
+      // SOUND TRIGGER: Node powers up when receiving resources
+      if (!this.target.isPowered) {
+        this.target.isPowered = true;
+        
+        if (powerUpSound && powerUpSound.isLoaded() && !isMuted) {
+          powerUpSound.rate(random(0.9, 1.1)); 
+          powerUpSound.setVolume(0.5); 
+          powerUpSound.play();
+        }
+      }
       
       if (this.target.row === currentMaxRow) {
         spawnNewFloor();
@@ -342,6 +364,38 @@ function drawHomeButton() {
   if (homeImg) image(homeImg, x, y, size, size); pop();
 }
 
+function drawSoundButton() {
+  let size = 30; 
+  let x = width - 54 - size; 
+  let y = 40; 
+  
+  soundHover = mouseX > x && mouseX < x + size && mouseY > y && mouseY < y + size;
+
+  push();
+  translate(x + size / 2, y + size / 2); 
+  
+  if (soundHover) cursor(HAND);
+  
+  let iconColor = soundHover ? color(255) : color(180);
+  
+  // Draw Speaker Body
+  noStroke(); fill(iconColor);
+  rect(-8, -4, 4, 8); 
+  quad(-4, -4, -4, 4, 4, 8, 4, -8); 
+  
+  // Draw Waves or 'X'
+  noFill(); stroke(iconColor); strokeWeight(2); strokeCap(ROUND); 
+  
+  if (!isMuted) {
+    arc(5, 0, 8, 12, -PI/3, PI/3);
+    arc(5, 0, 16, 20, -PI/3, PI/3);
+  } else {
+    line(8, -4, 14, 4);
+    line(14, -4, 8, 4);
+  }
+  pop();
+}
+
 function drawIntro() {
   textAlign(LEFT, CENTER); textFont("new-spirit"); drawingContext.font = `700 80px new-spirit, serif`;
   noStroke(); let tS = "STAGE "; let c1 = "0: START"; let c2 = "1: PROVIDE";
@@ -355,16 +409,74 @@ function drawIntro() {
 }
 
 function drawHUDSlider(x, y, val, label, id) {
-  let h = 210, w = 32; 
-  if (mouseIsPressed && mouseX > x - w && mouseX < x + w && mouseY > y - h/2 && mouseY < y + h/2) activeSlider = id;
-  if (activeSlider === id) { let nV = map(mouseY, y + h/2, y - h/2, 0, 1); if (id === 1) sliderSpeed = constrain(nV, 0, 1); if (id === 2) sliderStrength = constrain(nV, 0, 1); }
-  push(); translate(x, y); rectMode(CENTER); textAlign(CENTER, CENTER);
-  textFont("mulish-variable"); drawingContext.font = `200 16px mulish-variable, sans-serif`;
-  fill(255); text(floor(val * 100) + "%", 0, -h/2 - 14);
-  fill(0, 160); noStroke(); rect(0, 0, w, h, 16); 
-  let segments = 20; let segH = (h - 12) / segments;
-  for(let i = 0; i < segments; i++) { fill(81, 117, 185, (i / (segments - 1) <= val) ? 255 : 120); rect(0, h/2 - 6 - (i * segH) - segH/2, w - 10, segH - 2, 3); }
-  fill(255, 210); text(label, 0, h/2 + 20); pop();
+  let h = 200; 
+  let w = 40;  
+  let activeColor = color(81, 117, 185); 
+
+  if (mouseIsPressed &&
+      mouseX > x - w/2 && mouseX < x + w/2 &&
+      mouseY > y - h/2 && mouseY < y + h/2) {
+    activeSlider = id;
+  }
+
+  if (activeSlider === id) {
+    let prevVal = val; 
+    let rawVal = map(mouseY, y + h/2, y - h/2, 0, 1);
+    let snappedVal = round(constrain(rawVal, 0, 1) * 10) / 10;
+    
+    // NEW: Slider Sound playback using the single slider-2.wav
+    if (snappedVal !== prevVal) {
+      if (sliderSound && sliderSound.isLoaded() && !isMuted) {
+        // Higher value = higher pitch
+        sliderSound.rate(map(snappedVal, 0, 1, 0.7, 1.4)); 
+        sliderSound.setVolume(map(snappedVal, 0, 1, 0.4, 0.8));
+        sliderSound.play();
+      }
+    }
+    
+    if (id === 1) sliderSpeed = snappedVal;
+    if (id === 2) sliderStrength = snappedVal;
+  }
+
+  push();
+  translate(x, y);
+
+  textFont("mulish-variable");
+  drawingContext.font = `200 16px mulish-variable, sans-serif`;
+
+  textAlign(CENTER, CENTER);
+  fill(255);
+  text(floor(val * 100) + "%", 0, -h / 2 - 25);
+
+  strokeWeight(2);
+  stroke(255, 40);
+  line(0, -h/2, 0, h/2);
+  let currentY = map(val, 0, 1, h/2, -h/2);
+  stroke(activeColor);
+  line(0, h/2, 0, currentY);
+  
+  noStroke();
+  for (let i = 0; i <= 10; i++) {
+    let nodeY = map(i, 0, 10, h/2, -h/2);
+    let nodePct = i / 10;
+
+    if (nodePct <= val + 0.01) {
+      fill(activeColor);
+    } else {
+      fill(255, 100); 
+    }
+    circle(0, nodeY, 6);
+  }
+
+  fill(activeColor);
+  drawingContext.shadowBlur = 15;
+  drawingContext.shadowColor = activeColor;
+  circle(0, currentY, 13); 
+  drawingContext.shadowBlur = 0;
+
+  fill(255, 200);
+  text(label, 0, h / 2 + 26);
+  pop();
 }
 
 function drawNextLink() {
@@ -386,10 +498,27 @@ function drawCinematicBars() {
   drawingContext.fillStyle = bottomGrad; rect(0, height - barH, width, barH);
 }
 
-function drawHeaderImage() { if (headerImg && artAlpha > 0) { push(); imageMode(CENTER); drawingContext.globalAlpha = artAlpha / 255; image(headerImg, width / 2, 75); pop(); } }
 
 function drawSoftCircle(x, y, r, c) { let cl = color(c); let g = drawingContext.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(${red(cl)}, ${green(cl)}, ${blue(cl)}, 0.15)`); g.addColorStop(0.8, `rgba(${red(cl)}, ${green(cl)}, ${blue(cl)}, 0.03)`); g.addColorStop(1, `rgba(${red(cl)}, ${green(cl)}, ${blue(cl)}, 0)`); drawingContext.fillStyle = g; circle(x, y, r * 2); }
 
-function mousePressed() { if (homeHover) window.location.href = "index.html"; if (nextHover && appState === "ART") window.location.href = "my.html"; }
+function mousePressed() {
+  if (getAudioContext().state !== 'running') {
+    userStartAudio();
+  }
+
+  if (soundHover) {
+    isMuted = !isMuted;
+    if (isMuted) {
+      outputVolume(0); 
+    } else {
+      outputVolume(1); 
+    }
+    return; 
+  }
+  
+  if (homeHover) window.location.href = "index.html"; 
+  if (nextHover && appState === "ART") window.location.href = "my.html"; 
+}
+
 function mouseReleased() { activeSlider = null; }
 function windowResized() { resizeCanvas(windowWidth, windowHeight); centerX = width/2; targetY = height/2; }
