@@ -1,48 +1,66 @@
 /*
-Copyright (C) 2026 Truong Nguyen Kieu My
+REFERENCE:
+Google (n.d.) Gemini (Gemini Pro) [large language model], Google, accessed 27 March 2026. https://gemini.google.com/
+Processing Foundation (n.d.) p5.js (version 1.9.0) [software library], Processing Foundation, accessed 27 March 2026. https://p5js.org/
+Mother Teresa (2013) Mother Teresa: 10 inspiring quotes – Where peace comes from, The Christian Science Monitor website, accessed 24 March 2026, https://www.csmonitor.com/Books/2013/0825/Mother-Teresa-10-inspiring-quotes/Where-peace-comes-from.
+
+NOTE:
+For this code I did not use any library other than p5.js and p5.sound.js. 
+Code debugging assistance was provided by Google’s Gemini (Gemini Pro), which was used to identify and correct errors.
 */
 
-// --- 1. GLOBAL ARRAYS (Storing all the "parts" of the visual) ---
-let nodes = [];            // The individual points in the net
-let edges = [];            // The connection lines
-let faces = [];            // The filled triangles
-let pulses = [];           // The energy ripples moving across the screen
-let bokehParticles = [];   // The blurry background glow circles
+// --- 1. GLOBAL ARRAYS ---
+let nodes = [];            
+let edges = [];            
+let faces = [];            
+let pulses = [];           
+let bokehParticles = [];   
 
-// --- 2. STATE & UI VARIABLES (The "brain" that controls the flow) ---
-let appState = "INTRO";    // Current screen: INTRO, ART, or OUTRO
-let menuState = "CLOSED";  // Is the 'Adapt' menu open or closed?
+// --- 2. STATE & UI VARIABLES ---
+let appState = "INTRO";    
+let menuState = "CLOSED";  
 let currentShape = "ORIGINAL"; 
-let introAlpha = 255;      // Text transparency for fading
+let introAlpha = 255;      
 let outroAlpha = 0; 
-let artAlpha = 0;          // Fade-in effect for the generative art
-let homeHover = false;     // Tracks if mouse is over the home button
-let nextHover = false;     // Tracks if mouse is over the 'Next' link
-let introStage = 1;        // Which part of the intro text is playing
-let targetY, slideY;       // Vertical positions for sliding text
+let artAlpha = 0;          
+let homeHover = false;     
+let nextHover = false;     
+let soundHover = false;    
+let isMuted = false;       
+let introStage = 1;        
+let targetY, slideY;       
 let morphAlpha = 255;
-let activeSlider = null;   // Which slider is currently being dragged
+let activeSlider = null;   
 
-// User-defined variables controlled by the UI Sliders
 let sliderSpeed = 0.5;    
 let sliderStrength = 0.4; 
 
 // Network Geometry Settings
-const sides = 10;          // Points per ring
-const rings = 4;           // Concentric circle layers
-let centerX, centerY;      // Screen center
-let connectionDistance = 140; // Maximum distance to allow a "link"
+const sides = 10;          
+const rings = 4;           
+let centerX, centerY;      
+let connectionDistance = 140; 
 
-let headerImg;
+// Assets
 let homeImg; 
 
-// Preload: Ensuring images are ready before the sketch starts
+// Audio Assets
+let sliderSound;
+let adaptSound;
+let chargedSound;
+let pulseSound;
+let progressSound;
+
 function preload() {
-  headerImg = loadImage('header.png');
   homeImg = loadImage('house.png'); 
+  
+  sliderSound = loadSound("slider(edited).wav"); 
+  adaptSound = loadSound("adapt(edited).wav"); 
+  chargedSound = loadSound("connected.wav"); 
+  pulseSound = loadSound("signal-transmitting.wav"); 
+  progressSound = loadSound("charged.wav"); 
 }
 
-// Setup: Runs once to prepare the canvas and initialize the net
 function setup() {
   let cnv = createCanvas(windowWidth, windowHeight);
   cnv.parent('canvas-container'); 
@@ -52,43 +70,34 @@ function setup() {
   targetY = height / 2;
   slideY = targetY; 
   
-  // Creates the initial grid of nodes using Trigonometry
   initNetwork();
   
-  // Create 12 background bokeh particles with random properties
   bokehParticles = [];
   for (let i = 0; i < 12; i++) {
     bokehParticles.push({
-      x: random(width),
-      y: random(height),
-      anchorX: random(width),
-      anchorY: random(height),
+      x: random(width), y: random(height),
+      anchorX: random(width), anchorY: random(height),
       size: random(150, 300),
       col: random(['#ff6666', '#ffffff', '#ff9999']), 
-      phaseX: random(TWO_PI),
-      phaseY: random(TWO_PI),
-      speedX: random(0.001, 0.004),
-      speedY: random(0.001, 0.004),
+      phaseX: random(TWO_PI), phaseY: random(TWO_PI),
+      speedX: random(0.001, 0.004), speedY: random(0.001, 0.004),
       driftRange: random(40, 80)
     });
   }
 }
 
-// Draw: The main loop running at 60 frames per second
 function draw() {
-  background(4, 6, 12); // Deep navy background
+  background(4, 6, 12); 
 
-  // State Machine: Switching logic for different project phases
   if (appState === "INTRO") { 
     drawIntro(); 
   } 
   else if (appState === "ART") {
-    drawArt();              // The main network visual
-    autoTriggerPulses();    // Automatically generate ripples
-    drawCinematicBars();    // The movie-style black bars
-    drawHeaderImage();      // The top logo
+    drawArt();              
+    autoTriggerPulses();    
+    drawCinematicBars();    
     
-    // HUD Sliders with Red Theme
+    // HUD Sliders with sound integration
     drawHUDSlider(70, height/2 - 150, sliderSpeed, "Speed", 1);
     drawHUDSlider(70, height/2 + 150, sliderStrength, "Solutions &\nExperience", 2);
     
@@ -99,17 +108,31 @@ function draw() {
     drawOutro(); 
   }
   
-  // Home button appears in Art and Outro states
   if (appState !== "INTRO") {
     drawHomeButton(); 
+    drawSoundButton(); 
   }
 }
 
 // --- 3. NAVIGATION & MOUSE LOGIC ---
 
 function mousePressed() {
+  if (getAudioContext().state !== 'running') {
+    userStartAudio();
+  }
+
+  if (soundHover) {
+    isMuted = !isMuted;
+    if (isMuted) {
+      outputVolume(0); 
+    } else {
+      outputVolume(1); 
+    }
+    return; 
+  }
+
   if (homeHover) {
-    window.location.href = "index.html"; // Go back to landing page
+    window.location.href = "index.html"; 
     return;
   }
   if (nextHover && appState === "ART") {
@@ -120,7 +143,7 @@ function mousePressed() {
 }
 
 function mouseReleased() {
-  activeSlider = null; // Release the HUD sliders
+  activeSlider = null; 
 }
 
 // --- 4. SCREEN DRAWING FUNCTIONS ---
@@ -142,13 +165,12 @@ function drawIntro() {
   text(txtStage, startX, targetY);
   
   let numX = startX + textWidth(txtStage); 
-  slideY = lerp(slideY, targetY, 0.1); // Smooth vertical interpolation
+  slideY = lerp(slideY, targetY, 0.1); 
   
   let currentContent = (introStage === 1) ? content1 : content2;
   fill(255, morphAlpha); 
   text(currentContent, numX, slideY);
   
-  // Timer logic to switch between intro text stages
   if (frameCount > 120 && introStage === 1) { 
     morphAlpha -= 10; 
     if (morphAlpha <= 0) { 
@@ -157,7 +179,6 @@ function drawIntro() {
     } 
   }
   
-  // Fading logic to transition into the Art state
   if (introStage === 2) {
     morphAlpha = min(morphAlpha + 15, introAlpha); 
     if (frameCount > 260) { 
@@ -171,7 +192,6 @@ function drawIntro() {
 function drawOutro() {
   if (outroAlpha < 255) outroAlpha += 3; 
   
-  // Keep background bokeh moving in Outro
   blendMode(ADD);
   bokehParticles.forEach(b => {
     b.x = b.anchorX + sin(frameCount * b.speedX + b.phaseX) * b.driftRange;
@@ -200,11 +220,10 @@ function drawOutro() {
 }
 
 function drawArt() {
-  if (artAlpha < 255) artAlpha += 5; // Subtle fade in when Art starts
+  if (artAlpha < 255) artAlpha += 5; 
   push();
   drawingContext.globalAlpha = artAlpha / 255;
 
-  // Background movement
   blendMode(ADD);
   noStroke();
   for (let b of bokehParticles) {
@@ -213,7 +232,6 @@ function drawArt() {
     drawSoftCircle(b.x, b.y, b.size, b.col);
   }
 
-  // Draw Faces: Filling in triangles when three nodes are powered
   blendMode(BLEND);
   for (let f of faces) {
     let facePower = min(f.a.powerLevel, min(f.b.powerLevel, f.c.powerLevel));
@@ -223,18 +241,16 @@ function drawArt() {
     }
   }
 
-  // Draw Edges: Dotted lines between close nodes
   for (let e of edges) {
     let edgePower = min(e.a.powerLevel, e.b.powerLevel);
     let alpha = lerp(40, 200, edgePower);
     strokeWeight(1);
     stroke(255, alpha); 
-    drawingContext.setLineDash([2, 5]); // Dotted style
+    drawingContext.setLineDash([2, 5]); 
     line(e.a.pos.x, e.a.pos.y, e.b.pos.x, e.b.pos.y);
     drawingContext.setLineDash([]); 
   }
 
-  // Draw Pulses: Active ripples flowing into the net
   blendMode(ADD);
   for (let i = pulses.length - 1; i >= 0; i--) {
     pulses[i].update();
@@ -242,7 +258,7 @@ function drawArt() {
     if (pulses[i].isFinished) pulses.splice(i, 1);
   }
   
-  // Update and draw the Nodes
+  blendMode(BLEND); 
   for (let node of nodes) {
     node.update();
     node.display();
@@ -251,22 +267,14 @@ function drawArt() {
   pop();
 }
 
-function drawHeaderImage() {
-  if (headerImg && artAlpha > 0) {
-    push();
-    imageMode(CENTER);
-    drawingContext.globalAlpha = artAlpha / 255;
-    image(headerImg, width / 2, 75); 
-    pop();
-  }
-}
 
-// --- 5. CORE CLASSES (Object-Oriented Architecture) ---
+
+// --- 5. CORE CLASSES ---
 
 class Node {
   constructor(x, y) {
-    this.anchor = createVector(x, y); // The target coordinate
-    this.pos = createVector(x, y);    // The current pixel coordinate
+    this.anchor = createVector(x, y); 
+    this.pos = createVector(x, y);    
     this.noiseOffsetX = random(2000); 
     this.noiseOffsetY = random(4000);
     this.isCharging = false; 
@@ -276,13 +284,11 @@ class Node {
     this.glowRadius = 10; 
   }
 
-  // Procedural Animation: Using Noise for organic jitter and Lerp for morphing
   update() {
     let jitter = this.isPowered ? 1.5 : (this.isCharging ? 3 : 8);
     let nx = map(noise(this.noiseOffsetX), 0, 1, -jitter, jitter);
     let ny = map(noise(this.noiseOffsetY), 0, 1, -jitter, jitter);
     
-    // Smoothly travel to new shape targets
     this.pos.x = lerp(this.pos.x, this.anchor.x + nx, 0.08);
     this.pos.y = lerp(this.pos.y, this.anchor.y + ny, 0.08);
     
@@ -291,7 +297,6 @@ class Node {
     if (this.isPowered) this.powerLevel = 1;
   }
 
-  // Draw the custom node icon (V or Triangle)
   drawV() {
     push();
     translate(this.pos.x, this.pos.y);
@@ -327,6 +332,7 @@ class Node {
     this.isCharging = true; 
     this.chargeLevel = amount; 
     this.glowRadius = 10 + (amount * 25); 
+    // Removed audio trigger from here to prevent stuttering
   }
 
   powerUp() { 
@@ -334,9 +340,15 @@ class Node {
     this.isPowered = true; 
     this.powerLevel = 1; 
     this.glowRadius = 35; 
+    
+    if (chargedSound && chargedSound.isLoaded() && !isMuted) {
+      let r = random(0.9, 1.1); 
+      chargedSound.rate(r); 
+      chargedSound.setVolume(0.6); 
+      chargedSound.play();
+    }
   }
 
-  // Shading: Native Canvas radial gradient for custom light falloff
   display() {
     if (this.isPowered || this.isCharging) {
       let coreAlpha = this.isPowered ? 0.5 : this.chargeLevel * 0.2; 
@@ -350,7 +362,6 @@ class Node {
   }
 }
 
-// RippleFlow: Calculating path of energy from edge to node
 class RippleFlow {
   constructor(target) {
     let angle = random(TWO_PI);
@@ -362,7 +373,17 @@ class RippleFlow {
   }
 
   update() {
+    let prevProgress = this.progress;
     this.progress += map(pow(sliderSpeed, 2), 0, 1, 0.003, 0.025);
+    
+    // NEW: Play node-bloom.wav ONLY ONCE right when the resource from outside reaches the node
+    if (prevProgress < 1 && this.progress >= 1) {
+      if (progressSound && progressSound.isLoaded() && !isMuted) {
+        progressSound.setVolume(0.15);
+        progressSound.play();
+      }
+    }
+
     if (this.progress >= 1) {
       if (this.target.chargeLevel < 1) {
         this.target.charge(this.target.chargeLevel + 0.012);
@@ -388,19 +409,26 @@ class RippleFlow {
   }
 }
 
-// --- 6. AUTOMATION & NAVIGATION (Network Logic) ---
+// --- 6. AUTOMATION & NAVIGATION ---
 
 function autoTriggerPulses() {
   let interval = map(pow(sliderSpeed, 2), 0, 1, 140, 15); 
   if (frameCount % max(1, floor(interval)) === 0) {
     let valid = nodes.filter(n => !n.isPowered && !n.isCharging);
     if (valid.length > 0) {
-      pulses.push(new RippleFlow(random(valid)));
+      let targetNode = random(valid);
+      pulses.push(new RippleFlow(targetNode));
+      
+      if (pulseSound && pulseSound.isLoaded() && !isMuted) {
+        let panning = map(targetNode.pos.x, 0, width, -1.0, 1.0);
+        pulseSound.pan(panning); 
+        pulseSound.setVolume(0.2); 
+        pulseSound.play();
+      }
     }
   }
 }
 
-// InitNetwork: Polar coordinate math for grid placement
 function initNetwork() {
   nodes = []; edges = []; faces = [];
   let spacing = min(width, height) * 0.11; 
@@ -408,13 +436,11 @@ function initNetwork() {
     for (let i = 0; i < sides; i++) {
       let angle = i * (TWO_PI / sides) - HALF_PI;
       let radius = r * spacing;
-      // Polar (Angle/Radius) to Cartesian (X/Y) conversion
       let x = centerX + radius * cos(angle);
       let y = centerY + radius * sin(angle);
       nodes.push(new Node(x, y));
     }
   }
-  // Proximity logic to automatically build the net structure
   for (let i = 0; i < nodes.length; i++) {
     for (let j = i + 1; j < nodes.length; j++) {
       let d = dist(nodes[i].anchor.x, nodes[i].anchor.y, nodes[j].anchor.x, nodes[j].anchor.y);
@@ -432,7 +458,6 @@ function initNetwork() {
   }
 }
 
-// Transform: Changing the anchor targets to morph shapes
 function transformShape(type) {
   nodes.forEach((n, i) => {
     let tx, ty;
@@ -478,32 +503,84 @@ function drawTextButton(x, y, w, h, label, callback) {
   textFont("mulish-variable");
   drawingContext.font = `200 13px mulish-variable, sans-serif`;
   text(label, 0, 0);
-  if (isHover && mouseIsPressed && !activeSlider) { callback(); mouseIsPressed = false; } 
+  
+  if (isHover && mouseIsPressed && !activeSlider) { 
+    if (adaptSound && adaptSound.isLoaded() && !isMuted) {
+      adaptSound.play();
+    }
+    callback(); 
+    mouseIsPressed = false; 
+  } 
   pop();
 }
 
-// HUD: Interactive sliders mapping mouse positions to values (0-1)
 function drawHUDSlider(x, y, val, label, id) {
-  let h = 210, w = 32; 
-  if (mouseIsPressed && mouseX > x - w && mouseX < x + w && mouseY > y - h/2 && mouseY < y + h/2) activeSlider = id;
-  if (activeSlider === id) {
-    let newVal = map(mouseY, y + h/2, y - h/2, 0, 1);
-    if (id === 1) sliderSpeed = constrain(newVal, 0, 1);
-    if (id === 2) sliderStrength = constrain(newVal, 0, 1);
+  let h = 200; 
+  let w = 40;  
+  let activeColor = color(255, 80, 80); 
+
+  if (mouseIsPressed &&
+      mouseX > x - w/2 && mouseX < x + w/2 &&
+      mouseY > y - h/2 && mouseY < y + h/2) {
+    activeSlider = id;
   }
-  push(); translate(x, y); rectMode(CENTER); textAlign(CENTER, CENTER);
-  
+
+  if (activeSlider === id) {
+    let prevVal = val; 
+    let rawVal = map(mouseY, y + h/2, y - h/2, 0, 1);
+    let snappedVal = round(constrain(rawVal, 0, 1) * 10) / 10;
+    
+    if (snappedVal !== prevVal) {
+      if (sliderSound && sliderSound.isLoaded() && !isMuted) {
+        let pitch = (snappedVal > prevVal) ? map(snappedVal, 0, 1, 1, 1.5) : map(snappedVal, 0, 1, 0.5, 0.9);
+        sliderSound.rate(pitch); 
+        sliderSound.setVolume(0.5);
+        sliderSound.play();
+      }
+    }
+    
+    if (id === 1) sliderSpeed = snappedVal;
+    if (id === 2) sliderStrength = snappedVal;
+  }
+
+  push();
+  translate(x, y);
+
   textFont("mulish-variable");
   drawingContext.font = `200 16px mulish-variable, sans-serif`;
-  fill(255); text(floor(val * 100) + "%", 0, -h/2 - 14);
+
+  textAlign(CENTER, CENTER);
+  fill(255);
+  text(floor(val * 100) + "%", 0, -h / 2 - 25);
+
+  strokeWeight(2);
+  stroke(255, 40);
+  line(0, -h/2, 0, h/2);
+  let currentY = map(val, 0, 1, h/2, -h/2);
+  stroke(activeColor);
+  line(0, h/2, 0, currentY);
   
-  fill(0, 160); noStroke(); rect(0, 0, w, h, 16); 
-  let segments = 20; let segH = (h - 12) / segments;
-  for(let i = 0; i < segments; i++) {
-    fill(255, 80, 80, (i / (segments - 1) <= val) ? 180 : 30); 
-    rect(0, h/2 - 6 - (i * segH) - segH/2, w - 10, segH - 2, 3);
+  noStroke();
+  for (let i = 0; i <= 10; i++) {
+    let nodeY = map(i, 0, 10, h/2, -h/2);
+    let nodePct = i / 10;
+
+    if (nodePct <= val + 0.01) {
+      fill(activeColor);
+    } else {
+      fill(255, 100); 
+    }
+    circle(0, nodeY, 6);
   }
-  fill(255, 210); text(label, 0, h/2 + 20); 
+
+  fill(activeColor);
+  drawingContext.shadowBlur = 15;
+  drawingContext.shadowColor = activeColor;
+  circle(0, currentY, 13); 
+  drawingContext.shadowBlur = 0;
+
+  fill(255, 200);
+  text(label, 0, h / 2 + 26);
   pop();
 }
 
@@ -513,6 +590,43 @@ function drawHomeButton() {
   push(); 
   if (homeHover) { cursor(HAND); tint(255); } else { tint(180); }
   if (homeImg) { image(homeImg, x, y, size, size); }
+  pop();
+}
+
+function drawSoundButton() {
+  let size = 32; 
+  let x = width - 54 - size; 
+  let y = 40; 
+  
+  soundHover = mouseX > x && mouseX < x + size && mouseY > y && mouseY < y + size;
+
+  push();
+  translate(x + size / 2, y + size / 2); 
+  
+  if (soundHover) {
+    cursor(HAND);
+  }
+  
+  let iconColor = soundHover ? color(255) : color(180);
+  
+  noStroke();
+  fill(iconColor);
+  rect(-8, -4, 4, 8); 
+  quad(-4, -4, -4, 4, 4, 8, 4, -8); 
+  
+  noFill();
+  stroke(iconColor);
+  strokeWeight(2);
+  strokeCap(ROUND); 
+  
+  if (!isMuted) {
+    arc(5, 0, 8, 12, -PI/3, PI/3);
+    arc(5, 0, 16, 20, -PI/3, PI/3);
+  } else {
+    line(8, -4, 14, 4);
+    line(14, -4, 8, 4);
+  }
+  
   pop();
 }
 
