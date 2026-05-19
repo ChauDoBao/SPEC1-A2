@@ -488,24 +488,33 @@ class Node {
     }
   }
 
-  drawV() {
+ drawV() {
     push(); translate(this.pos.x, this.pos.y);
     let nodeColor = lerpColor(color(255), color(81, 117, 185), this.colorLerp);
-    let alpha = (this.isPowered ? 255 : 150) * this.appearanceAlpha; 
+    
+    // NEW: Check if Funding or Tech is active
+    let hasColorResources = (sliderFunding > 0.01 || sliderTech > 0.01);
+    
+    // If powered AND has color resources, go to 255. 
+    // If powered but ONLY knowledge is active, keep opacity at 150 (the "unpowered" level).
+    let targetAlpha = (this.isPowered && hasColorResources) ? 255 : 150;
+    let alpha = targetAlpha * this.appearanceAlpha; 
+    
     stroke(red(nodeColor), green(nodeColor), blue(nodeColor), alpha);
     
-    // NEW: Apply condition to stroke weight so Knowledge slider doesn't thicken it
-    let hasColorResources = (sliderFunding > 0.01 || sliderTech > 0.01);
+    // Apply condition to stroke weight so Knowledge slider doesn't thicken it
     strokeWeight((this.isPowered && hasColorResources) ? 2.5 : 1.5);
     
     noFill();
     let r = this.currentSize * 0.5;
     let p1 = {x: 0, y: -r}, p2 = {x: -r * 0.86, y: r * 0.5}, p3 = {x: r * 0.86, y: r * 0.5};
+    
     if (this.isPowered) { 
       beginShape(); vertex(p1.x, p1.y); vertex(p2.x, p2.y); vertex(p3.x, p3.y); endShape(CLOSE);
     } else { 
       line(p1.x, p1.y, p2.x, p2.y); line(p1.x, p1.y, p3.x, p3.y);
     }
+    
     noStroke(); fill(255, alpha);
     
     // Apply condition to corner dots size
