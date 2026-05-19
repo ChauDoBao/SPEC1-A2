@@ -42,7 +42,7 @@ let sourceSound;
 let fundSound;
 let techSound;
 let knowSound;
-let bgMusic;
+let bgMusic; // Background music variable
 
 // --- INSTRUCTION FLAGS ---
 let introSequenceStarted = false;
@@ -79,14 +79,14 @@ function preload() {
   fundSound = loadSound("Funding.wav");
   techSound = loadSound("Technology.wav");
   knowSound = loadSound("Knowledge.wav");
-  bgMusic = loadSound("backgroundtaiyo.wav");
+  
+  bgMusic = loadSound("backgroundtaiyo.wav"); // Uncomment and add your filename here
 }
 
 function updateUILayout() {
   ui.isMobile = width < 700;
   ui.margin = ui.isMobile ? 25 : 60;
   
-  // FIX: Make the connection distance larger on mobile to bridge the stretched gap
   connectionDistance = ui.isMobile ? 260 : 180; 
 
   if (ui.isMobile) {
@@ -139,14 +139,12 @@ function setup() {
   initInitialNetwork();
 }
 
-// Helper Function to handle HTML text fading
 function displayInstruction(textStr, duration = 5000) {
   let instr = select('#instruction-text');
   if (instr) {
     instr.html(textStr);
     instr.addClass('show-instruction');
     
-    // Clear existing timeout so texts don't overlap strangely
     if (window.instructionTimeout) clearTimeout(window.instructionTimeout);
     
     window.instructionTimeout = setTimeout(() => {
@@ -167,7 +165,6 @@ function draw() {
       footer.addClass("show-now");
     }
     
-    // --- 1. START INTRO SEQUENCE ---
     if (!introSequenceStarted) {
       introSequenceStarted = true;
       
@@ -182,14 +179,12 @@ function draw() {
       setTimeout(() => { if (!userHasInteracted) displayInstruction(s4, 5000); }, 19000);
     }
 
-    // --- 2. NODE HOVER/TAP INSTRUCTIONS ---
-    // On mobile, require a tap. On desktop, just hovering works.
     let isInteractingWithNodes = ui.isMobile ? mouseIsPressed : true;
     
     if (isInteractingWithNodes && frameCount % 10 === 0) { 
       for (let n of nodes) {
         if (dist(mouseX, mouseY, n.pos.x, n.pos.y) < n.currentSize) {
-          userHasInteracted = true; // Cancels intro sequence if they explore early
+          userHasInteracted = true; 
           
           if (n.row === 0 && !hasShownDev) {
             displayInstruction("Developed countries – the brightest nodes, always full brightness to represent full resources.");
@@ -206,8 +201,6 @@ function draw() {
       }
     }
 
-    // --- 3. END STAGE INSTRUCTION ---
-    // Check if network is fully populated and powered
     let allPowered = nodes.length > 20 && nodes.every(n => n.isPowered);
     if (allPowered && !hasShownEnd && introSequenceStarted) {
       setTimeout(() => {
@@ -220,7 +213,6 @@ function draw() {
     autoTriggerPulses(); 
     drawCinematicBars(); 
     
-    // --- RESPONSIVE 3-SLIDER UI ---
     if (!ui.isMobile) {
       let uiX = 70;
       let opac = mouseX < ui.sidebarW + 50 || activeSlider !== null ? 255 : 80;
@@ -255,9 +247,6 @@ function initInitialNetwork() {
   currentMaxRow = ui.isMobile ? 4 : 5; 
   
   for (let r = 0; r <= currentMaxRow; r++) {
-    
-    // NEW: Calculate the bottom boundary based on the device
-    // Desktop goes down to 82% of the screen, mobile stops at 60% to squeeze them together
     let bottomSpread = ui.isMobile ? height * 0.70 : height * 0.82;
     let y = map(r, 0, currentMaxRow, height * 0.22, bottomSpread);
     
@@ -267,7 +256,6 @@ function initInitialNetwork() {
     for (let i = 0; i < nodesInRow; i++) {
       let x = map(i, 0, nodesInRow - 1, centerX - rowWidth/2, centerX + rowWidth/2);
       let nodeType = (r === 0) ? 'developed' : (r === 1 ? 'developing' : 'ldc');
-      
       let size = (r === 0) ? (ui.isMobile ? 50 : 80) : (r === 1 ? 35 : 18);
       
       nodes.push(new Node(x, y, size, nodeType, (r <= 1), r));
@@ -466,9 +454,14 @@ class Node {
     let vx = map(noise(this.noiseOffsetX), 0, 1, -1.5, 1.5);
     let vy = map(noise(this.noiseOffsetY), 0, 1, -1.5, 1.5);
     
-    if (this.vibrateTimer > 0) {
-        vx += random(-3, 3);
-        vy += random(-3, 3);
+   if (this.vibrateTimer > 0) {
+        // Calculate intensity: Higher knowledge = stronger shake
+        // We multiply the random range by (1 + sliderKnowledge * 3) 
+        // to make it up to 4x stronger at 100% slider
+        let intensity = 3 * (1 + sliderKnowledge * 3); 
+        
+        vx += random(-intensity, intensity);
+        vy += random(-intensity, intensity);
     } else if (!this.isPowered) {
         vx = map(noise(this.noiseOffsetX), 0, 1, -8, 8);
         vy = map(noise(this.noiseOffsetY), 0, 1, -8, 8);
@@ -487,7 +480,11 @@ class Node {
       this.powerLevel = 1;
     } else if (this.isPowered) {
       this.powerLevel = lerp(this.powerLevel, 1, 0.05);
-      this.colorLerp = lerp(this.colorLerp, 1.0, 0.01);
+      
+      // Determine if color should fade to blue based on resources
+      let hasColorResources = (sliderFunding > 0.01 || sliderTech > 0.01);
+      let targetColor = hasColorResources ? 1.0 : 0.0;
+      this.colorLerp = lerp(this.colorLerp, targetColor, 0.02);
     }
   }
 
@@ -496,7 +493,11 @@ class Node {
     let nodeColor = lerpColor(color(255), color(81, 117, 185), this.colorLerp);
     let alpha = (this.isPowered ? 255 : 150) * this.appearanceAlpha; 
     stroke(red(nodeColor), green(nodeColor), blue(nodeColor), alpha);
-    strokeWeight(this.isPowered ? 2.5 : 1.5);
+    
+    // NEW: Apply condition to stroke weight so Knowledge slider doesn't thicken it
+    let hasColorResources = (sliderFunding > 0.01 || sliderTech > 0.01);
+    strokeWeight((this.isPowered && hasColorResources) ? 2.5 : 1.5);
+    
     noFill();
     let r = this.currentSize * 0.5;
     let p1 = {x: 0, y: -r}, p2 = {x: -r * 0.86, y: r * 0.5}, p3 = {x: r * 0.86, y: r * 0.5};
@@ -506,14 +507,14 @@ class Node {
       line(p1.x, p1.y, p2.x, p2.y); line(p1.x, p1.y, p3.x, p3.y);
     }
     noStroke(); fill(255, alpha);
-    let ds = this.isPowered ? 5 : 3;
+    
+    // Apply condition to corner dots size
+    let ds = (this.isPowered && hasColorResources) ? 5 : 3;
     ellipse(p1.x, p1.y, ds, ds); ellipse(p2.x, p2.y, ds, ds); ellipse(p3.x, p3.y, ds, ds);
     pop();
   }
 
   display() {
-    // Check if there is enough Funding or Tech to trigger the glow. 
-    // If only Knowledge is active (Funding and Tech are 0), this evaluates to false and suppresses the glow.
     let hasGlowResources = (sliderFunding > 0.01 || sliderTech > 0.01);
     
     if (this.isPowered && this.appearanceAlpha > 0.1 && hasGlowResources) {
@@ -728,7 +729,6 @@ function drawHUDSlider(x, y, val, label, id, sliderOpacity, horizontal, customLe
     ? mouseX > x - len / 2 && mouseX < x + len / 2 && mouseY > y - 20 && mouseY < y + 20
     : mouseX > x - 30 && mouseX < x + 30 && mouseY > y - 100 && mouseY < y + 100;
 
-  // --- 4. SLIDER HOVER/TAP INSTRUCTIONS ---
   let isInteracting = ui.isMobile ? mouseIsPressed : true;
   if (over && appState === "ART" && isInteracting) {
       userHasInteracted = true;
@@ -856,11 +856,12 @@ function mousePressed() {
   if (getAudioContext().state !== 'running') {
     userStartAudio();
   }
-if (bgMusic && bgMusic.isLoaded() && !bgMusic.isPlaying()) {
-    bgMusic.setVolume(0.3); // Set this low so it doesn't overpower your sound effects
-    bgMusic.loop();         // .loop() instead of .play() so it repeats forever
+
+  if (bgMusic && bgMusic.isLoaded() && !bgMusic.isPlaying()) {
+    bgMusic.setVolume(0.3); 
+    bgMusic.loop();         
   }
-  
+
   if (soundHover) {
     isMuted = !isMuted;
     if (isMuted) {
