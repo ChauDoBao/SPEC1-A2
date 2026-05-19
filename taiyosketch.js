@@ -20,36 +20,93 @@ let targetY, slideY;
 let morphAlpha = 255;     
 let activeSlider = null;  
 
-let sliderSpeed = 0.5;    
-let sliderStrength = 0.4; 
+let sliderFunding = 0.3;    
+let sliderTech = 0.3; 
+let sliderKnowledge = 0.3;
 
 let currentMaxRow = 5;    
 let centerX;              
-let connectionDistance = 160; 
+let connectionDistance = 180; 
 
-let homeImg;              
+let homeImg;        
+let soundOnImg, soundOffImg; 
 let energyOut = 0;        
 
 // Sound Variables
 let soundHover = false; 
 let isMuted = false;    
-let launchSound;
-let powerUpSound;
-let sliderSound; // NEW: Single variable for the slider sound
+let sliderSound; 
+
+let flowSound;
+let sourceSound;
+let fundSound;
+let techSound;
+let knowSound;
+let bgMusic;
+
+// --- INSTRUCTION FLAGS ---
+let introSequenceStarted = false;
+let hasShownDev = false;
+let hasShownDeveloping = false;
+let hasShownLDC = false;
+let hasShownFund = false;
+let hasShownTech = false;
+let hasShownKnow = false;
+let hasShownCombine = false;
+let hasShownEnd = false;
+let userHasInteracted = false; 
+
+// --- RESPONSIVE UI OBJECT ---
+let ui = {
+  isMobile: false,
+  sidebarW: 250, 
+  margin: 50,
+  fPercent: 12,
+  fLabel: 10,
+  fNav: 16,
+  fIntro: 60,
+};
 
 // --- 3. PRELOAD & SETUP ---
 function preload() {
   homeImg = loadImage('house.png');
+  soundOnImg = loadImage("sound-on.png");   
+  soundOffImg = loadImage("sound-off.png");
+  sliderSound = loadSound("slide-2.wav"); 
   
-  // Load the sounds
-  launchSound = loadSound("Resource-Launch(edited).wav"); 
-  powerUpSound = loadSound("Node-Powerd-Up(edited).wav"); 
-  sliderSound = loadSound("slide-2.wav"); // NEW: Load the slider sound
+  flowSound = loadSound("Resource-Providing-Flow.wav");
+  sourceSound = loadSound("Source-activation.wav");
+  fundSound = loadSound("Funding.wav");
+  techSound = loadSound("Technology.wav");
+  knowSound = loadSound("Knowledge.wav");
+  bgMusic = loadSound("backgroundtaiyo.wav");
+}
+
+function updateUILayout() {
+  ui.isMobile = width < 700;
+  ui.margin = ui.isMobile ? 25 : 60;
+  
+  // FIX: Make the connection distance larger on mobile to bridge the stretched gap
+  connectionDistance = ui.isMobile ? 260 : 180; 
+
+  if (ui.isMobile) {
+    ui.fPercent = 12;
+    ui.fLabel = 12;
+    ui.fNav = 12;
+    ui.fIntro = min(width * 0.09, 45);
+  } else {
+    ui.fPercent = 16;
+    ui.fLabel = 16;
+    ui.fNav = 16;
+    ui.fIntro = min(width * 0.06, 75);
+  }
 }
 
 function setup() {
   let cnv = createCanvas(windowWidth, windowHeight);
   cnv.parent('canvas-container'); 
+
+  updateUILayout();
 
   centerX = width * 0.5;
   targetY = height / 2;
@@ -67,7 +124,35 @@ function setup() {
     });
   }
 
+  let nextBtn = select('#next-btn');
+  if (nextBtn) {
+    nextBtn.mousePressed((e) => {
+      e.preventDefault(); 
+      if (appState === "ART") {
+        appState = "OUTRO";
+        let footer = select('#dynamic-footer');
+        if (footer) footer.removeClass('show-now');
+      }
+    });
+  }
+  
   initInitialNetwork();
+}
+
+// Helper Function to handle HTML text fading
+function displayInstruction(textStr, duration = 5000) {
+  let instr = select('#instruction-text');
+  if (instr) {
+    instr.html(textStr);
+    instr.addClass('show-instruction');
+    
+    // Clear existing timeout so texts don't overlap strangely
+    if (window.instructionTimeout) clearTimeout(window.instructionTimeout);
+    
+    window.instructionTimeout = setTimeout(() => {
+      instr.removeClass('show-instruction');
+    }, duration);
+  }
 }
 
 function draw() {
@@ -77,15 +162,83 @@ function draw() {
     drawIntro(); 
   } 
   else if (appState === "ART") {
+    let footer = select("#dynamic-footer");
+    if (footer && !footer.hasClass("show-now")) {
+      footer.addClass("show-now");
+    }
+    
+    // --- 1. START INTRO SEQUENCE ---
+    if (!introSequenceStarted) {
+      introSequenceStarted = true;
+      
+      let s1 = "The goal of this generative art is to illustrate the process of providing, where developed countries provide resources to support developing countries and LDCs.";
+      let s2 = "Users can observe the flow of resources from the top nodes representing developed countries to all the nodes below.";
+      let s3 = "They can also interact to adjust the amount and speed of resources being delivered, helping them understand triangular partnerships.";
+      let s4 = ui.isMobile ? "Tap the network and sliders to understand what they represent." : "Hover over the network and sliders to understand what they represent.";
+      
+      displayInstruction(s1, 5500);
+      setTimeout(() => { if (!userHasInteracted) displayInstruction(s2, 5500); }, 6000);
+      setTimeout(() => { if (!userHasInteracted) displayInstruction(s3, 6500); }, 12000);
+      setTimeout(() => { if (!userHasInteracted) displayInstruction(s4, 5000); }, 19000);
+    }
+
+    // --- 2. NODE HOVER/TAP INSTRUCTIONS ---
+    // On mobile, require a tap. On desktop, just hovering works.
+    let isInteractingWithNodes = ui.isMobile ? mouseIsPressed : true;
+    
+    if (isInteractingWithNodes && frameCount % 10 === 0) { 
+      for (let n of nodes) {
+        if (dist(mouseX, mouseY, n.pos.x, n.pos.y) < n.currentSize) {
+          userHasInteracted = true; // Cancels intro sequence if they explore early
+          
+          if (n.row === 0 && !hasShownDev) {
+            displayInstruction("Developed countries – the brightest nodes, always full brightness to represent full resources.");
+            hasShownDev = true;
+          } else if (n.row === 1 && !hasShownDeveloping) {
+            displayInstruction("Developing countries – receive resources from the top row.");
+            hasShownDeveloping = true;
+          } else if (n.row > 1 && !hasShownLDC) {
+            displayInstruction("LDCs receive resources and gradually become brighter over time.");
+            hasShownLDC = true;
+          }
+          break; 
+        }
+      }
+    }
+
+    // --- 3. END STAGE INSTRUCTION ---
+    // Check if network is fully populated and powered
+    let allPowered = nodes.length > 20 && nodes.every(n => n.isPowered);
+    if (allPowered && !hasShownEnd && introSequenceStarted) {
+      setTimeout(() => {
+        displayInstruction("Once all nodes are connected, press “Next Stage” to transition to the next part of the artwork.", 8000);
+        hasShownEnd = true;
+      }, 2000); 
+    }
+    
     drawArt();           
     autoTriggerPulses(); 
     drawCinematicBars(); 
     
-    // Slider UI Integration 
-    drawHUDSlider(70, height/2 - 150, sliderSpeed, "Speed", 1);
-    drawHUDSlider(70, height/2 + 150, sliderStrength, "Quantity", 2);
-    
-    drawNextLink();      
+    // --- RESPONSIVE 3-SLIDER UI ---
+    if (!ui.isMobile) {
+      let uiX = 70;
+      let opac = mouseX < ui.sidebarW + 50 || activeSlider !== null ? 255 : 80;
+      
+      drawHUDSlider(uiX, height / 2 - 150, sliderFunding, "Funding", 1, opac, false);
+      drawHUDSlider(uiX + 90, height / 2 - 150, sliderKnowledge, "Knowledge", 3, opac, false);
+      drawHUDSlider(uiX, height / 2 + 150, sliderTech, "Tech", 2, opac, false);
+      
+    } else {
+      let opac = mouseY > height - 190 || activeSlider !== null ? 255 : 120;
+      let sliderW = (width - 60) / 2;
+      let yBottom = height - 130;
+      let yTop = yBottom - 45; 
+
+      drawHUDSlider(width / 2 - sliderW / 2 - 10, yTop, sliderTech, "Technology", 2, opac, true);
+      drawHUDSlider(width / 2 - sliderW / 2 - 10, yBottom, sliderFunding, "Funding", 1, opac, true);
+      drawHUDSlider(width / 2 + sliderW / 2 + 10, yBottom, sliderKnowledge, "Knowledge", 3, opac, true);
+    }
   }
   
   if (appState !== "INTRO") {
@@ -98,15 +251,25 @@ function draw() {
 
 function initInitialNetwork() {
   nodes = [];
+  
+  currentMaxRow = ui.isMobile ? 4 : 5; 
+  
   for (let r = 0; r <= currentMaxRow; r++) {
-    let y = map(r, 0, currentMaxRow, height * 0.22, height * 0.82);
+    
+    // NEW: Calculate the bottom boundary based on the device
+    // Desktop goes down to 82% of the screen, mobile stops at 60% to squeeze them together
+    let bottomSpread = ui.isMobile ? height * 0.70 : height * 0.82;
+    let y = map(r, 0, currentMaxRow, height * 0.22, bottomSpread);
+    
     let nodesInRow = r + 2; 
     let rowWidth = map(r, 0, currentMaxRow, width * 0.1, width * 0.8);
     
     for (let i = 0; i < nodesInRow; i++) {
       let x = map(i, 0, nodesInRow - 1, centerX - rowWidth/2, centerX + rowWidth/2);
       let nodeType = (r === 0) ? 'developed' : (r === 1 ? 'developing' : 'ldc');
-      let size = (r === 0) ? 80 : (r === 1 ? 35 : 18);
+      
+      let size = (r === 0) ? (ui.isMobile ? 50 : 80) : (r === 1 ? 35 : 18);
+      
       nodes.push(new Node(x, y, size, nodeType, (r <= 1), r));
     }
   }
@@ -114,7 +277,7 @@ function initInitialNetwork() {
 }
 
 function spawnNewFloor() {
-  if (nodes.length > 200) return; 
+  if (nodes.length > 150) return; 
   
   let currentDeepestY = 0;
   nodes.forEach(n => { if(n.pos.y > currentDeepestY) currentDeepestY = n.pos.y; });
@@ -123,16 +286,16 @@ function spawnNewFloor() {
   let r = currentMaxRow;
   let newY = currentDeepestY + 90; 
   
-  if (newY > height - 140) return; 
+  let bottomLimit = ui.isMobile ? height - 380 : height - 140;
+  if (newY > bottomLimit) return; 
 
-  let nodesInRow = min(r + 2, 10); 
+  let nodesInRow = min(r + 2, 8); 
   let rowWidth = map(r, 0, 10, width * 0.3, width * 1.5);
   
   for (let i = 0; i < nodesInRow; i++) {
     let x = map(i, 0, nodesInRow - 1, centerX - rowWidth/2, centerX + rowWidth/2);
     nodes.push(new Node(x, newY, 18, 'ldc', false, r));
   }
-  
   refreshConnections(); 
 }
 
@@ -175,7 +338,10 @@ function drawArt() {
     let facePower = min(f.a.powerLevel, min(f.b.powerLevel, f.c.powerLevel));
     if (facePower > 0) {
       let c = lerpColor(color(255), color(81, 117, 185), f.a.colorLerp);
-      c.setAlpha(100 * facePower * f.a.appearanceAlpha);
+      
+      let baseAlpha = (f.a.row === 0 || f.b.row === 0 || f.c.row === 0) ? 40 : 100;
+      
+      c.setAlpha(baseAlpha * facePower * f.a.appearanceAlpha);
       fill(c); 
       triangle(f.a.pos.x, f.a.pos.y, f.b.pos.x, f.b.pos.y, f.c.pos.x, f.c.pos.y);
     }
@@ -184,15 +350,37 @@ function drawArt() {
   for (let e of edges) {
     let edgePower = min(e.a.powerLevel, e.b.powerLevel);
     let visibility = min(e.a.appearanceAlpha, e.b.appearanceAlpha);
+    
     if (visibility > 0.1) {
-       let alpha = lerp(0, 180 * visibility, edgePower + 0.1);
-       stroke(255, alpha); 
-       strokeWeight(1);
-       drawingContext.setLineDash([2, 5]); 
+       let baseAlpha = lerp(0, 100 * visibility, edgePower + 0.1);
+       
+       let techPulse = sin(frameCount * 0.05 + e.a.pos.x * 0.01) * 0.5 + 0.5; 
+       let techAlpha = lerp(0, 255, sliderTech * techPulse) * visibility;
+       let finalAlpha = min(255, baseAlpha + techAlpha);
+       
+       stroke(255, finalAlpha); 
+       
+       if (sliderTech > 0.1) {
+           drawingContext.shadowBlur = map(sliderTech, 0, 1, 0, 15);
+           drawingContext.shadowColor = '#5175B9';
+       } else {
+           drawingContext.shadowBlur = 0;
+       }
+
+       if (sliderTech > 0.8) {
+           strokeWeight(1.5);
+           drawingContext.setLineDash([]); 
+       } else {
+           strokeWeight(1);
+           let gap = max(1, 5 - (sliderTech * 4));
+           drawingContext.setLineDash([2, gap]); 
+       }
+
        line(e.a.pos.x, e.a.pos.y, e.b.pos.x, e.b.pos.y);
-       drawingContext.setLineDash([]); 
+       drawingContext.shadowBlur = 0; 
     }
   }
+  drawingContext.setLineDash([]); 
 
   blendMode(ADD);
   for (let i = pulses.length - 1; i >= 0; i--) {
@@ -210,23 +398,40 @@ function drawArt() {
 }
 
 function autoTriggerPulses() {
-  let interval = map(pow(sliderStrength, 2), 0, 1, 160, 5);
-  if (frameCount % max(1, floor(interval)) === 0) {
+  let totalSliders = sliderFunding + sliderTech + sliderKnowledge;
+  
+  let interval = map(pow(totalSliders / 3, 1.5), 0, 1, 240, 45); 
+  
+  if (frameCount % max(1, floor(interval)) === 0 && totalSliders > 0.05) {
+    
+    if (pulses.length > 12) return; 
+
     let sources = nodes.filter(n => n.row === 0);
+    
     if (sources.length > 0) {
       let src = random(sources);
       let targets = nodes.filter(n => n.row === 1);
       
       if (targets.length > 0) {
-        pulses.push(new RippleFlow(src, random(targets), true));
+        let rnd = random(totalSliders);
+        let pType = 'funding';
+        if (rnd > sliderFunding) pType = 'tech';
+        if (rnd > sliderFunding + sliderTech) pType = 'knowledge';
+        
+        let speedMod = map(totalSliders / 3, 0, 1, 0.015, 0.05); 
+        
+        pulses.push(new RippleFlow(src, random(targets), true, pType, speedMod));
         energyOut += 0.08; 
         
-        // SOUND TRIGGER: First triangle (Source) launches resources
-        if (launchSound && launchSound.isLoaded() && !isMuted) {
-          let panning = map(src.pos.x, 0, width, -1.0, 1.0);
-          launchSound.pan(panning); 
-          launchSound.setVolume(0.3); 
-          launchSound.play();
+        if (sourceSound && sourceSound.isLoaded() && !isMuted) {
+          sourceSound.pan(map(src.pos.x, 0, width, -1.0, 1.0)); 
+          sourceSound.setVolume(0.4); 
+          sourceSound.play();
+        }
+        
+        if (flowSound && flowSound.isLoaded() && !isMuted && !flowSound.isPlaying()) {
+          flowSound.setVolume(0.2);
+          flowSound.play();
         }
       }
     }
@@ -249,20 +454,36 @@ class Node {
     this.noiseOffsetX = random(2000); 
     this.noiseOffsetY = random(4000);
     this.colorLerp = (type === 'developed') ? 1.0 : 0.0;
+    
+    this.vibrateTimer = 0; 
   }
 
   update() {
     if (this.appearanceAlpha < 1.0) this.appearanceAlpha += 0.02;
 
-    let jitter = this.isPowered ? 1.5 : 8;
-    this.pos.x = lerp(this.pos.x, this.anchor.x + map(noise(this.noiseOffsetX), 0, 1, -jitter, jitter), 0.08);
-    this.pos.y = lerp(this.pos.y, this.anchor.y + map(noise(this.noiseOffsetY), 0, 1, -jitter, jitter), 0.08);
+    if (this.vibrateTimer > 0) this.vibrateTimer--;
+    
+    let vx = map(noise(this.noiseOffsetX), 0, 1, -1.5, 1.5);
+    let vy = map(noise(this.noiseOffsetY), 0, 1, -1.5, 1.5);
+    
+    if (this.vibrateTimer > 0) {
+        vx += random(-3, 3);
+        vy += random(-3, 3);
+    } else if (!this.isPowered) {
+        vx = map(noise(this.noiseOffsetX), 0, 1, -8, 8);
+        vy = map(noise(this.noiseOffsetY), 0, 1, -8, 8);
+    }
+
+    this.pos.x = lerp(this.pos.x, this.anchor.x + vx, 0.15);
+    this.pos.y = lerp(this.pos.y, this.anchor.y + vy, 0.15);
+    
     this.noiseOffsetX += 0.01; this.noiseOffsetY += 0.01;
 
     if (this.type === 'developed') {
       let expansion = map(constrain(energyOut, 0, 20), 0, 20, 1.0, 2.2);
       this.currentSize = this.baseSize * expansion;
-      this.colorLerp = lerp(this.colorLerp, 0.0, 0.005); 
+      
+      this.colorLerp = lerp(this.colorLerp, 1.0, 0.005); 
       this.powerLevel = 1;
     } else if (this.isPowered) {
       this.powerLevel = lerp(this.powerLevel, 1, 0.05);
@@ -291,7 +512,11 @@ class Node {
   }
 
   display() {
-    if (this.isPowered && this.appearanceAlpha > 0.1) {
+    // Check if there is enough Funding or Tech to trigger the glow. 
+    // If only Knowledge is active (Funding and Tech are 0), this evaluates to false and suppresses the glow.
+    let hasGlowResources = (sliderFunding > 0.01 || sliderTech > 0.01);
+    
+    if (this.isPowered && this.appearanceAlpha > 0.1 && hasGlowResources) {
       let currentGlow = this.currentSize * 2.2;
       let nodeColor = lerpColor(color(255), color(81, 117, 185), this.colorLerp);
       let grad = drawingContext.createRadialGradient(this.pos.x, this.pos.y, 0, this.pos.x, this.pos.y, currentGlow);
@@ -304,208 +529,338 @@ class Node {
 }
 
 class RippleFlow {
-  constructor(start, target, triggerNext) {
+  constructor(start, target, triggerNext, type, speed) {
     this.startPos = createVector(start.pos.x, start.pos.y); 
     this.target = target;
     this.progress = 0;
     this.triggerNext = triggerNext;
+    this.type = type;   
+    this.speed = speed; 
     this.isFinished = false;
   }
+  
   update() {
-    this.progress += map(pow(sliderSpeed, 2), 0, 1, 0.003, 0.025);
+    this.progress += this.speed;
     if (this.progress >= 1) {
       
-      // SOUND TRIGGER: Node powers up when receiving resources
+      if (!isMuted) {
+          let sfx;
+          if (this.type === 'funding') sfx = fundSound;
+          else if (this.type === 'tech') sfx = techSound;
+          else if (this.type === 'knowledge') sfx = knowSound;
+          
+          if (sfx && sfx.isLoaded()) {
+              sfx.rate(random(0.9, 1.1));
+              sfx.setVolume(0.5);
+              sfx.play();
+          }
+      }
+
       if (!this.target.isPowered) {
         this.target.isPowered = true;
-        
-        if (powerUpSound && powerUpSound.isLoaded() && !isMuted) {
-          powerUpSound.rate(random(0.9, 1.1)); 
-          powerUpSound.setVolume(0.5); 
-          powerUpSound.play();
-        }
       }
       
+      if (this.type === 'knowledge') {
+          this.target.vibrateTimer = 25; 
+      }
+
       if (this.target.row === currentMaxRow) {
         spawnNewFloor();
       }
 
-      if (this.triggerNext) {
+      if (this.triggerNext && pulses.length < 20) {
         let nxtR = this.target.row + 1;
         let nxtT = nodes.filter(n => n.row === nxtR && dist(n.pos.x, n.pos.y, this.target.pos.x, this.target.pos.y) < connectionDistance * 2.5);
-        nxtT.forEach(l => { 
-          if (random(1) > (0.95 - sliderStrength)) {
-            pulses.push(new RippleFlow(this.target, l, true)); 
-          }
-        });
+        
+        if (nxtT.length > 0) {
+          let shuffledPaths = nxtT.sort(() => 0.5 - Math.random());
+          let branches = shuffledPaths.slice(0, 1); 
+          
+          branches.forEach(l => { 
+            let cascadeProb = (this.type === 'funding' ? sliderFunding : (this.type === 'tech' ? sliderTech : sliderKnowledge));
+            if (random(1) < cascadeProb + 0.2) {
+              pulses.push(new RippleFlow(this.target, l, true, this.type, this.speed)); 
+            }
+          });
+        }
       }
       this.isFinished = true;
     }
   }
+  
   display() {
+    push();
     noStroke();
-    for (let i = 0; i < 60; i++) {
-      let t = i / 60;
+    
+    if (this.type === 'funding') {
+        drawingContext.shadowBlur = 15;
+        drawingContext.shadowColor = '#8faadc'; 
+    }
+    
+    let trailLength = 15;
+    for (let i = 0; i < trailLength; i++) {
+      let t = i / trailLength;
       if (t > this.progress) continue;
       let p = p5.Vector.lerp(this.startPos, this.target.pos, t);
-      let w = exp(-pow((t - this.progress) * 16, 2));
+      let w = exp(-pow((t - this.progress) * 8, 2)); 
+      
       fill(255, 255 * w); 
       ellipse(p.x, p.y, 1.2 + w * 4.5);
     }
+    pop();
   }
 }
 
 // --- 6. UI & HELPER FUNCTIONS ---
 
 function drawHomeButton() {
-  let x = 54, y = 40, size = 32; 
-  homeHover = (mouseX > x && mouseX < x + size && mouseY > y && mouseY < y + size);
-  push(); if (homeHover) { cursor(HAND); tint(255); } else { tint(180); }
-  if (homeImg) image(homeImg, x, y, size, size); pop();
+  let x = ui.isMobile ? 25 : 54;
+  let y = ui.isMobile ? 30 : 45;
+  let size = ui.isMobile ? 24 : 32;
+  homeHover = mouseX > x && mouseX < x + size && mouseY > y && mouseY < y + size;
+  if (homeHover) cursor(HAND);
+
+  push();
+  if (homeHover) {
+    tint(255, 255);
+  } else {
+    tint(255, 100);
+  }
+  if (homeImg) image(homeImg, x, y, size, size);
+  pop();
 }
 
 function drawSoundButton() {
-  let size = 30; 
-  let x = width - 54 - size; 
-  let y = 40; 
-  
+  let size = ui.isMobile ? 24 : 32;
+  let marginX = ui.isMobile ? 25 : 54;
+  let y = ui.isMobile ? 30 : 45;
+  let x = width - marginX - size;
+
   soundHover = mouseX > x && mouseX < x + size && mouseY > y && mouseY < y + size;
 
   push();
-  translate(x + size / 2, y + size / 2); 
-  
-  if (soundHover) cursor(HAND);
-  
-  let iconColor = soundHover ? color(255) : color(180);
-  
-  // Draw Speaker Body
-  noStroke(); fill(iconColor);
-  rect(-8, -4, 4, 8); 
-  quad(-4, -4, -4, 4, 4, 8, 4, -8); 
-  
-  // Draw Waves or 'X'
-  noFill(); stroke(iconColor); strokeWeight(2); strokeCap(ROUND); 
-  
-  if (!isMuted) {
-    arc(5, 0, 8, 12, -PI/3, PI/3);
-    arc(5, 0, 16, 20, -PI/3, PI/3);
+  if (soundHover) {
+    cursor(HAND);
+    tint(255, 255);
   } else {
-    line(8, -4, 14, 4);
-    line(14, -4, 8, 4);
+    tint(255, 100);
+  }
+
+  let currentImg = isMuted ? soundOffImg : soundOnImg;
+  if (currentImg) {
+    image(currentImg, x, y, size, size);
   }
   pop();
 }
 
 function drawIntro() {
-  textAlign(LEFT, CENTER); textFont("new-spirit"); drawingContext.font = `700 80px new-spirit, serif`;
-  noStroke(); let tS = "STAGE "; let c1 = "0: START"; let c2 = "1: PROVIDE";
-  let fW = textWidth(tS) + textWidth(c2); let sX = (width / 2) - (fW / 2);
-  fill(255, introAlpha); text(tS, sX, targetY);
-  let nX = sX + textWidth(tS); slideY = lerp(slideY, targetY, 0.1); 
-  let curr = (introStage === 1) ? c1 : c2;
-  fill(255, morphAlpha); text(curr, nX, slideY);
-  if (frameCount > 120 && introStage === 1) { morphAlpha -= 10; if (morphAlpha <= 0) { introStage = 2; slideY = targetY - 60; } }
-  if (introStage === 2) { morphAlpha = min(morphAlpha + 15, introAlpha); if (frameCount > 260) { introAlpha -= 5; morphAlpha = introAlpha; if (introAlpha <= 0) appState = "ART"; } }
-}
+  push();
+  let isMobile = width < 600;
+  let fontSize = isMobile ? 32 : 80;
 
-function drawHUDSlider(x, y, val, label, id) {
-  let h = 200; 
-  let w = 40;  
-  let activeColor = color(81, 117, 185); 
+  textFont("new-spirit");
+  textSize(fontSize);
+  textStyle(BOLD);
+  drawingContext.font = `700 ${fontSize}px new-spirit, serif`;
+  noStroke();
 
-  if (mouseIsPressed &&
-      mouseX > x - w/2 && mouseX < x + w/2 &&
-      mouseY > y - h/2 && mouseY < y + h/2) {
-    activeSlider = id;
+  let txtStage = "STAGE ";
+  let num1 = "0: ", text1 = "START";
+  let num2 = "1: ", text2 = "PROVIDE";
+
+  let currentNum = introStage === 1 ? num1 : num2;
+  let currentText = introStage === 1 ? text1 : text2;
+
+  slideY = lerp(slideY, targetY, 0.1);
+
+  if (isMobile) {
+    let topWidth = textWidth(txtStage) + textWidth(currentNum);
+    let startX = width / 2 - topWidth / 2;
+
+    textAlign(LEFT, CENTER);
+    fill(255, introAlpha);
+    text(txtStage, startX, targetY - 25);
+
+    fill(255, morphAlpha);
+    text(currentNum, startX + textWidth(txtStage), targetY - 25);
+
+    textAlign(CENTER, CENTER);
+    text(currentText, width / 2, slideY + 25);
+  } else {
+    textAlign(LEFT, CENTER);
+
+    let fullContent = currentNum + currentText;
+    let fullWidth = textWidth(txtStage) + textWidth(fullContent);
+    let startX = width / 2 - fullWidth / 2;
+
+    fill(255, introAlpha);
+    text(txtStage, startX, targetY);
+
+    let numX = startX + textWidth(txtStage);
+    fill(255, morphAlpha);
+    text(fullContent, numX, slideY);
+  }
+  pop();
+
+  if (frameCount > 120 && introStage === 1) {
+    morphAlpha -= 10;
+    if (morphAlpha <= 0) {
+      introStage = 2;
+      slideY = targetY - (isMobile ? 35 : 60);
+    }
   }
 
+  if (introStage === 2) {
+    morphAlpha = min(morphAlpha + 15, introAlpha);
+    if (frameCount > 260) {
+      introAlpha -= 5;
+      morphAlpha = introAlpha;
+      if (introAlpha <= 0) appState = "ART";
+    }
+  }
+}
+
+function drawHUDSlider(x, y, val, label, id, sliderOpacity, horizontal, customLen) {
+  let len = customLen ? customLen : (ui.isMobile ? width / 2 - 50 : 180);
+  let activeColor = color(81, 117, 185); 
+
+  let over = horizontal
+    ? mouseX > x - len / 2 && mouseX < x + len / 2 && mouseY > y - 20 && mouseY < y + 20
+    : mouseX > x - 30 && mouseX < x + 30 && mouseY > y - 100 && mouseY < y + 100;
+
+  // --- 4. SLIDER HOVER/TAP INSTRUCTIONS ---
+  let isInteracting = ui.isMobile ? mouseIsPressed : true;
+  if (over && appState === "ART" && isInteracting) {
+      userHasInteracted = true;
+      
+      if (id === 1 && !hasShownFund) {
+        displayInstruction("Increase Funding: More funding pulses → nodes below become brighter, representing richer resources.");
+        hasShownFund = true;
+      } else if (id === 2 && !hasShownTech) {
+        displayInstruction("Increase Technology: Lights get brighter and flicker → simulate technology spreading, pulse motion becomes smoother based on technological advancement.");
+        hasShownTech = true;
+      } else if (id === 3 && !hasShownKnow) {
+        displayInstruction("Increase Knowledge: Nodes vibrate when receiving → illustrate the spread of knowledge and experience.");
+        hasShownKnow = true;
+      }
+      
+      if (hasShownFund && hasShownTech && hasShownKnow && !hasShownCombine) {
+          setTimeout(() => {
+              displayInstruction("Combine All Sliders: Creates a lively network where nodes activate and provide resources depending on slider percentages.", 8000);
+          }, 6000); 
+          hasShownCombine = true;
+      }
+  }
+
+  if (mouseIsPressed && over) activeSlider = id;
+
   if (activeSlider === id) {
-    let prevVal = val; 
-    let rawVal = map(mouseY, y + h/2, y - h/2, 0, 1);
+    let prevVal = val;
+    let rawVal = horizontal
+      ? map(mouseX, x - len / 2, x + len / 2, 0, 1)
+      : map(mouseY, y + 100, y - 100, 0, 1);
     let snappedVal = round(constrain(rawVal, 0, 1) * 10) / 10;
     
-    // NEW: Slider Sound playback using the single slider-2.wav
     if (snappedVal !== prevVal) {
       if (sliderSound && sliderSound.isLoaded() && !isMuted) {
-        // Higher value = higher pitch
         sliderSound.rate(map(snappedVal, 0, 1, 0.7, 1.4)); 
         sliderSound.setVolume(map(snappedVal, 0, 1, 0.4, 0.8));
         sliderSound.play();
       }
     }
     
-    if (id === 1) sliderSpeed = snappedVal;
-    if (id === 2) sliderStrength = snappedVal;
+    if (id === 1) sliderFunding = snappedVal;
+    if (id === 2) sliderTech = snappedVal;
+    if (id === 3) sliderKnowledge = snappedVal;
   }
 
   push();
   translate(x, y);
-
+  drawingContext.globalAlpha = sliderOpacity / 255;
   textFont("mulish-variable");
-  drawingContext.font = `200 16px mulish-variable, sans-serif`;
 
-  textAlign(CENTER, CENTER);
-  fill(255);
-  text(floor(val * 100) + "%", 0, -h / 2 - 25);
+  if (horizontal) {
+    textAlign(LEFT, CENTER);
+    drawingContext.font = `500 ${ui.fLabel}px mulish-variable, sans-serif`;
+    fill(255);
+    text(label, -len / 2, -10);
 
-  strokeWeight(2);
-  stroke(255, 40);
-  line(0, -h/2, 0, h/2);
-  let currentY = map(val, 0, 1, h/2, -h/2);
-  stroke(activeColor);
-  line(0, h/2, 0, currentY);
-  
-  noStroke();
-  for (let i = 0; i <= 10; i++) {
-    let nodeY = map(i, 0, 10, h/2, -h/2);
-    let nodePct = i / 10;
+    textAlign(RIGHT, CENTER);
+    drawingContext.font = `500 ${ui.fPercent}px mulish-variable, sans-serif`;
+    text(floor(val * 100) + "%", len / 2, -10);
 
-    if (nodePct <= val + 0.01) {
-      fill(activeColor);
-    } else {
-      fill(255, 100); 
+    stroke(255, 40);
+    strokeWeight(2);
+    line(-len / 2, 5, len / 2, 5);
+    stroke(activeColor);
+    line(-len / 2, 5, map(val, 0, 1, -len / 2, len / 2), 5);
+    noStroke();
+    for (let i = 0; i <= 10; i++) {
+      let nx = map(i, 0, 10, -len / 2, len / 2);
+      fill(i / 10 <= val + 0.01 ? activeColor : 80);
+      circle(nx, 5, 3);
     }
-    circle(0, nodeY, 6);
+    fill(activeColor);
+    circle(map(val, 0, 1, -len / 2, len / 2), 5, 12);
+  } else {
+    textAlign(CENTER, CENTER);
+    drawingContext.font = `500 ${ui.fPercent}px mulish-variable, sans-serif`;
+    fill(255);
+    text(floor(val * 100) + "%", 0, -125);
+
+    drawingContext.font = `500 ${ui.fLabel}px mulish-variable, sans-serif`;
+    text(label, 0, 125);
+
+    stroke(255, 40);
+    strokeWeight(2);
+    line(0, -100, 0, 100);
+    stroke(activeColor);
+    line(0, 100, 0, map(val, 0, 1, 100, -100));
+    noStroke();
+    for (let i = 0; i <= 10; i++) {
+      let ny = map(i, 0, 10, 100, -100);
+      fill(i / 10 <= val + 0.01 ? activeColor : 80);
+      circle(0, ny, 5);
+    }
+    fill(activeColor);
+    circle(0, map(val, 0, 1, 100, -100), 16); 
   }
-
-  fill(activeColor);
-  drawingContext.shadowBlur = 15;
-  drawingContext.shadowColor = activeColor;
-  circle(0, currentY, 13); 
-  drawingContext.shadowBlur = 0;
-
-  fill(255, 200);
-  text(label, 0, h / 2 + 26);
   pop();
 }
 
-function drawNextLink() {
-  let label = "Next Stage >>"; textSize(16); let x = width - 60, y = height - 85;
-  textFont("mulish-variable"); drawingContext.font = `200 16px mulish-variable, sans-serif`;
-  let txtW = textWidth(label); x -= txtW; 
-  nextHover = (mouseX > x - 25 && mouseX < width && mouseY > y - 45 && mouseY < height);
-  push(); translate(x, y); textAlign(LEFT, BASELINE);
-  if (nextHover) { cursor(HAND); drawingContext.shadowBlur = 18; drawingContext.shadowColor = 'rgba(255, 255, 255, 0.8)'; }
-  fill(nextHover ? 255 : 150); text(label, 0, 0);
-  stroke(81, 117, 185, nextHover ? 255 : 110); strokeWeight(2.5); line(0, 10, txtW, 10); pop();
-}
-
 function drawCinematicBars() {
-  let barH = 150; noStroke();
-  let topGrad = drawingContext.createLinearGradient(0, 0, 0, barH); topGrad.addColorStop(0, 'rgba(0,0,0,1)'); topGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  let isMobile = width < 600;
+  let barH = isMobile ? 100 : 150;
+  noStroke();
+  let topGrad = drawingContext.createLinearGradient(0, 0, 0, barH); 
+  topGrad.addColorStop(0, 'rgba(0,0,0,1)'); 
+  topGrad.addColorStop(1, 'rgba(0,0,0,0)');
   drawingContext.fillStyle = topGrad; rect(0, 0, width, barH);
-  let bottomGrad = drawingContext.createLinearGradient(0, height, 0, height - barH); bottomGrad.addColorStop(0, 'rgba(0,0,0,1)'); bottomGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  let bottomGrad = drawingContext.createLinearGradient(0, height, 0, height - barH); 
+  bottomGrad.addColorStop(0, 'rgba(0,0,0,1)'); 
+  bottomGrad.addColorStop(1, 'rgba(0,0,0,0)');
   drawingContext.fillStyle = bottomGrad; rect(0, height - barH, width, barH);
 }
 
-
-function drawSoftCircle(x, y, r, c) { let cl = color(c); let g = drawingContext.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(${red(cl)}, ${green(cl)}, ${blue(cl)}, 0.15)`); g.addColorStop(0.8, `rgba(${red(cl)}, ${green(cl)}, ${blue(cl)}, 0.03)`); g.addColorStop(1, `rgba(${red(cl)}, ${green(cl)}, ${blue(cl)}, 0)`); drawingContext.fillStyle = g; circle(x, y, r * 2); }
+function drawSoftCircle(x, y, r, c) { 
+  let cl = color(c); 
+  let g = drawingContext.createRadialGradient(x, y, 0, x, y, r); 
+  g.addColorStop(0, `rgba(${red(cl)}, ${green(cl)}, ${blue(cl)}, 0.15)`); 
+  g.addColorStop(0.8, `rgba(${red(cl)}, ${green(cl)}, ${blue(cl)}, 0.03)`); 
+  g.addColorStop(1, `rgba(${red(cl)}, ${green(cl)}, ${blue(cl)}, 0)`); 
+  drawingContext.fillStyle = g; 
+  circle(x, y, r * 2); 
+}
 
 function mousePressed() {
   if (getAudioContext().state !== 'running') {
     userStartAudio();
   }
-
+if (bgMusic && bgMusic.isLoaded() && !bgMusic.isPlaying()) {
+    bgMusic.setVolume(0.3); // Set this low so it doesn't overpower your sound effects
+    bgMusic.loop();         // .loop() instead of .play() so it repeats forever
+  }
+  
   if (soundHover) {
     isMuted = !isMuted;
     if (isMuted) {
@@ -517,8 +872,13 @@ function mousePressed() {
   }
   
   if (homeHover) window.location.href = "index.html"; 
-  if (nextHover && appState === "ART") window.location.href = "my.html"; 
 }
 
 function mouseReleased() { activeSlider = null; }
-function windowResized() { resizeCanvas(windowWidth, windowHeight); centerX = width/2; targetY = height/2; }
+
+function windowResized() { 
+  resizeCanvas(windowWidth, windowHeight); 
+  updateUILayout();
+  centerX = width/2; 
+  targetY = height/2; 
+}
