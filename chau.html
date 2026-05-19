@@ -1,20 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SDG 17: Generative Network Art</title>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
   <link rel="stylesheet" href="https://use.typekit.net/wza6swk.css">
 
-
   <style>
-    body,
-    html {
+    body, html {
       margin: 0;
       padding: 0;
       width: 100%;
@@ -22,7 +18,9 @@
       background-color: #000000;
       color: #FFFFFF;
       overflow: hidden;
-      /* REMOVED: display: flex and flex-direction: column */
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
     }
 
     #canvas-container {
@@ -32,7 +30,6 @@
       width: 100%;
       height: 100%;
       z-index: 1;
-      /* Sits behind the text */
     }
 
     #ui-overlay {
@@ -45,13 +42,11 @@
       height: 100%;
       box-sizing: border-box;
       display: grid;
-      /* 1. Swap the column widths: 60% left (empty), 40% right (text) */
       grid-template-columns: 60% 40%;
       grid-template-rows: 80px 1fr 100px;
       grid-template-areas:
         "topTitle topTitle"
         ". main"
-        /* 2. Move 'main' to the second column */
         "bottomQuote bottomQuote";
       padding: 20px;
     }
@@ -63,7 +58,6 @@
       justify-content: center;
       width: 320px;
       max-width: 50%;
-      /* Increased for better fit on the right */
       height: fit-content;
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.38);
@@ -72,27 +66,23 @@
       font-family: "new-spirit", serif;
       font-weight: 500;
       font-style: normal;
-      /* 3. Anchor the box to the RIGHT of its column */
       justify-self: end;
       align-self: center;
       margin-right: 40px;
-      /* Adds some breathing room from the edge */
-
       pointer-events: auto;
     }
 
     .top-title {
       grid-area: topTitle;
-      /* Centers the container horizontally in the grid area */
       display: flex;
-      justify-content: center; 
+      justify-content: center;
       align-items: flex-start;
-      padding-top: 10px; /* Optional: nudge it down from the very top */
+      padding-top: 10px;
     }
 
     .header-img {
-      max-height: 70px; /* Limits height to fit your grid-template-rows */
-      width: auto;      /* Maintains aspect ratio */
+      max-height: 70px;
+      width: auto;
       display: block;
     }
 
@@ -105,61 +95,149 @@
       text-align: left;
     }
 
-
     .small-body {
       font-family: "mulish-variable", sans-serif;
       font-variation-settings: "wght" 200;
-
       font-size: 0.85rem;
       line-height: 1.5;
       color: rgba(255, 255, 255, 0.9);
       text-align: left;
     }
 
-    .bottom-quote {
-      grid-area: bottomQuote;
-      text-align: center;
+    .ui-footer-grid {
+      position: fixed;
+      bottom: 0;
+      left: 0;
       width: 100%;
-      align-self: end;
-      padding-bottom: 20px;
-      justify-self: center;
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr;
+      align-items: stretch;
+      padding: 0 40px 40px 40px;
+      box-sizing: border-box;
+      z-index: 100;
+
+      /* Initial state: Hidden */
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 1.2s ease-in-out;
     }
 
-    .quote-container {
-      max-width: 700px;
-      margin: 0 auto;
+    /* Toggled via p5.js when Intro ends */
+    .ui-footer-grid.show-now {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .footer-quote-area {
+      text-align: center;
     }
 
     .quote-text {
-      font-family: "new-spirit", serif;
-      font-weight: 500;
-      font-style: italic;
-      font-size: 1rem;
-      line-height: 1.4;
-      color: rgba(255, 255, 255, 0.85);
+      font-family: "mulish-variable", sans-serif;
+      color: rgba(255, 255, 255, 1);
+      font-size: clamp(12px, 1.2vw, 14px);
+      margin: 0;
     }
 
-    .author {
-      font-family: "new-spirit", serif;
-      font-weight: 500;
-      display: block;
-      margin-top: 8px;
-      font-size: 0.8rem;
+    .quote-author {
+      font-family: "mulish-variable", sans-serif;
+      font-style: italic;
       color: rgba(255, 255, 255, 0.7);
-      letter-spacing: 0.02em;
+      font-size: clamp(12px, 1.2vw, 14px);
+      margin: 0;
+    }
+
+    .footer-nav-area {
+      text-align: right; 
+    }
+
+    .html-next-link {
+      font-family: "mulish-variable", sans-serif;
+      font-weight: 500; 
+      color: rgba(255, 255, 255, 0.4);
+      text-decoration: none;
+      border-bottom: 2px solid rgba(255, 47, 47, 0.4);
+      padding-bottom: 4px;
+      transition: all 0.3s ease;
+      font-size: 16px;
+    }
+
+    .html-next-link:hover {
+      color: #ffffff;
+      border-bottom-color: rgb(255, 47, 47);
+    }
+
+    #header-grid {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 3fr 1fr;
+      padding-top: 45px;
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    .grid-center {
+      text-align: center;
+    }
+
+    #instruction-text {
+      font-family: "mulish-variable", sans-serif;
+      font-weight: 500;
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0); 
+      margin: 0;
+      transition: color 0.8s ease;
+    }
+
+    #instruction-text.show-instruction {
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    @media (max-width: 700px) {
+      .ui-footer-grid {
+        grid-template-columns: 3fr 1fr;
+        padding: 0 25px 25px 25px;
+        align-items: end;
+      }
+      .footer-left-space { display: none; }
+      .footer-quote-area { text-align: left; }
+      .quote-text, .quote-author { font-size: 12px; }
+      .html-next-link {
+        font-size: 12px; 
+        white-space: nowrap; 
+      }
+      #header-grid { padding-top: 30px; }
+      #instruction-text { font-size: 12px; }
     }
   </style>
 </head>
 
 <body>
-
   <div id="canvas-container"></div>
-
-  <div id="ui-overlay">
-
+  <div id="header-grid">
+    <div class="grid-side"></div>
+    <div class="grid-center">
+      <p id="instruction-text"></p>
+    </div>
+    <div class="grid-side"></div>
   </div>
+
+  <footer id="dynamic-footer" class="ui-footer-grid">
+    <div class="footer-left-space"></div>
+    <div class="footer-quote-area">
+      <p class="quote-text">
+        “Great things in business are never done by one person; they're done by a team of people.”
+      </p>
+      <span class="quote-author">by Steve Jobs (2003)</span>
+    </div>
+    <div class="footer-nav-area">
+      <a href="#" id="next-btn" class="html-next-link">Next Stage >></a>
+    </div>
+  </footer>
 
   <script src="chausketch.js"></script>
 </body>
-
 </html>
